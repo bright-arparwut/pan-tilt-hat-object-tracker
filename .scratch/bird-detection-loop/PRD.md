@@ -1,5 +1,11 @@
 # PRD — Bird Detection Loop (YOLO + sliced inference → annotated video + detections sidecar)
 
+> **Superseded (2026-06-25) by `.scratch/object-tracker-refactor/PRD.md`.** This PRD
+> delivered the bird-framed detection + tracking loop (ADR-0001–0007). The successor
+> reframes the same engine as a **general** object-tracker — drops the bird default
+> (ADR-0008) and splits the monolith into a package behind a backend-agnostic `Detector`
+> seam (ADR-0009). Kept for history; do not treat as current.
+
 ## Problem
 
 We need to detect **very small flying birds** in video and produce (a) a legible

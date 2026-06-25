@@ -1,13 +1,34 @@
-# yolo-byteTrack-sot
+# object-tracker
 
-A pipeline for detecting (and later tracking) small objects in video using a YOLO
-detector run under SAHI sliced inference, producing an annotated output video.
+A pipeline for detecting and tracking objects in video. A backend-agnostic detector
+(YOLO today) runs over each frame — optionally under sliced inference so small objects
+survive at native resolution — and an in-loop tracker assigns identities, producing an
+annotated output video and a machine-readable detections record. Any class, any weights;
+birds are just one example.
 
 ## Language
 
+**Detector**:
+The component that, given one frame, returns that frame's Detections —
+`detect(frame) -> sv.Detections`. A backend-agnostic interface: the rest of the pipeline
+depends only on this contract, never on which model produced the boxes.
+_Avoid_: model (bare), predictor, inferer
+
+**Detector Backend**:
+A concrete [Detector] wrapping one detection model (YOLO today; DETR / RF-DETR are
+candidates later). Owns its own confidence threshold, class filter, and device — how it
+honours those is the backend's business.
+_Avoid_: engine, model wrapper
+
+**Sliced Detector**:
+A [Detector] that wraps another [Detector] and runs it over the [Slice]s of a frame,
+merging the per-slice results — the [Sliced Inference] technique realised as a decorator.
+Backend-agnostic: it slices for whatever Detector it wraps (ADR-0009).
+_Avoid_: slicer (bare), tiler, SAHI detector
+
 **Detection**:
 A single object instance found in one frame — bounding box (`xyxy`), confidence, and
-class id. The loop's output unit. Carries no identity of its own; when tracking is on, a
+class id. The [Detector]'s output unit. Carries no identity of its own; when tracking is on, a
 [Track] is what links Detections of the same object across frames (the `tracker_id` is
 attached to the Detection, not part of what makes it a Detection).
 _Avoid_: hit, box (bare), prediction
@@ -15,37 +36,38 @@ _Avoid_: hit, box (bare), prediction
 **Track**:
 A persistent identity (`tracker_id`) that `sv.ByteTrack` assigns to a series of
 Detections judged to be the same object across consecutive frames. Lives only while
-tracking is enabled (`--track`); the detector itself emits identity-free Detections.
+tracking is enabled (`--track`); the [Detector] itself emits identity-free Detections.
 _Avoid_: tracklet (bare), object id, trace (that is the drawn trail)
 
 **Detection Loop**:
-The per-frame cycle that reads a frame, runs sliced inference, and writes results
-(annotated video and/or detection records).
+The per-frame cycle that reads a frame, runs the [Detector], optionally tracks, and writes
+results (annotated video and/or detection records).
 
 **Sliced Inference**:
-Running the detector on overlapping sub-regions of a frame and merging the results,
-so small objects survive at native resolution. The SAHI *technique*, implemented here
-via supervision's `InferenceSlicer` (not the obss/sahi package — see ADR-0003).
+Running the [Detector] on overlapping sub-regions of a frame and merging the results,
+so small objects survive at native resolution. The SAHI *technique*, implemented here as a
+[Sliced Detector] over supervision's `InferenceSlicer` (not the obss/sahi package — see
+ADR-0003).
 _Avoid_: tiling (bare), SAHI (as a verb), SAHI (meaning the package)
 
 **Slice**:
-One overlapping sub-region of a frame that the detector runs on during sliced inference.
+One overlapping sub-region of a frame that the [Detector] runs on during sliced inference.
 _Avoid_: tile, patch, crop
 
 **Annotated Video**:
-The human-facing output: the source video with each frame's Detections drawn on
-(box, class, confidence).
+The human-facing output: the source video with each frame's Detections (or, under
+`--track`, confirmed Tracks) drawn on — box, class/id, confidence.
 _Avoid_: result video, output (bare)
 
 **Detections Sidecar**:
 The machine-facing output: a per-frame, append-only record of every Detection in a
 run (one JSON object per frame — frame index plus its list of Detections), written
-beside the Annotated Video. The tracker-ready handoff a future tracking stage consumes.
+beside the Annotated Video. The tracker-ready handoff a downstream consumer can read.
 _Avoid_: log, dump, results file
 
 **Zoom Panel**:
 One magnified picture-in-picture crop composited into the Annotated Video, centred on a
-single Detection so that a very small bird is legible.
+single Detection so that a very small object is legible.
 _Avoid_: PiP (bare), zoom window, magnifier
 
 **Zoom Inset**:
