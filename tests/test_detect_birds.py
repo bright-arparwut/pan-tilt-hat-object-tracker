@@ -124,3 +124,19 @@ def test_validation_accepts_valid_args():
 
 def test_validation_still_rejects_bad_zoom_size():
     assert db.validation_error(zoom_size=0.0, zoom_max=1) is not None
+
+
+# --- class resolution (configurable target; birds by default) ----------------------
+def test_resolve_classes_defaults_to_birds_on_stock_weights():
+    args = db.build_parser().parse_args(["--source", "x.mp4"])
+    assert db._resolve_classes(args, weights_is_default=True) == db.DEFAULT_CLASS_IDS
+
+
+def test_resolve_classes_explicit_classes_detect_any_object():
+    args = db.build_parser().parse_args(["--source", "x.mp4", "--classes", "0", "16"])
+    assert db._resolve_classes(args, weights_is_default=True) == (0, 16)
+
+
+def test_resolve_classes_custom_weights_keep_all_classes():
+    args = db.build_parser().parse_args(["--source", "x.mp4"])
+    assert db._resolve_classes(args, weights_is_default=False) is None

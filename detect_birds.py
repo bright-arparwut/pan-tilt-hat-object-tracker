@@ -1,4 +1,4 @@
-"""Single-script bird detection loop.
+"""Single-script object-detection loop — birds by default, any COCO class via ``--classes``.
 
 YOLO + optional sliced inference (the SAHI *technique*, via ``supervision``'s
 ``InferenceSlicer``) over offline video, producing an annotated video (boxes + a
@@ -39,7 +39,10 @@ class _ByteTracker(Protocol):
 
 
 # --- defaults / constants (resolution-relative where it matters) -------------------
-COCO_BIRD_CLASS_ID = 14
+COCO_BIRD_CLASS_ID = 14  # COCO id for "bird"
+# The shipped default target on stock COCO weights when no --classes is given. Bird is the
+# default value, but the loop is class-agnostic: pass --classes <ids> to detect anything.
+DEFAULT_CLASS_IDS: tuple[int, ...] = (COCO_BIRD_CLASS_ID,)
 DEFAULT_WEIGHTS = "yolo11n.pt"
 DEFAULT_CONF = 0.15  # recall-first; tracking is the false-positive filter (ADR-0004)
 DEFAULT_SLICE_WH = (640, 640)
@@ -578,10 +581,16 @@ def _derive_paths(source: Path, output: str | None, sidecar: str | None) -> RunP
 
 
 def _resolve_classes(args, weights_is_default: bool) -> tuple[int, ...] | None:
+    """Resolve which class ids to keep.
+
+    Explicit ``--classes`` always wins. Otherwise stock COCO weights fall back to the
+    shipped default target (``DEFAULT_CLASS_IDS`` = birds) and custom weights keep all
+    classes. The loop never assumes birds — ``--classes`` makes it detect anything.
+    """
     if args.classes is not None:
         return tuple(args.classes)
     if weights_is_default:
-        return (COCO_BIRD_CLASS_ID,)  # COCO default -> birds only
+        return DEFAULT_CLASS_IDS  # stock weights -> default target; override with --classes
     return None  # custom weights -> keep all classes
 
 
@@ -614,7 +623,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--weights", default=DEFAULT_WEIGHTS, help="YOLO weights (.pt)")
     p.add_argument("--device", default="auto", help="auto | cpu | mps | cuda | cuda:0")
     p.add_argument("--conf", type=float, default=DEFAULT_CONF, help="Confidence threshold")
-    p.add_argument("--classes", type=int, nargs="+", default=None, help="Class ids to keep")
+    p.add_argument("--classes", type=int, nargs="+", default=None,
+                   help="Class ids to keep (default: birds on stock weights; pass any COCO ids)")
     p.add_argument("--slice", dest="slice", action=argparse.BooleanOptionalAction, default=True,
                    help="Toggle sliced inference (default: on)")
     p.add_argument("--slice-wh", type=int, nargs=2, default=list(DEFAULT_SLICE_WH),
