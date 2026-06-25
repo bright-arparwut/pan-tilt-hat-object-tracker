@@ -1,6 +1,6 @@
 # 03 — Detection step with slicing toggle
 
-Status: ready-for-agent
+Status: done (implemented in d75e61c on feat/bird-detection-loop)
 
 ## Goal
 

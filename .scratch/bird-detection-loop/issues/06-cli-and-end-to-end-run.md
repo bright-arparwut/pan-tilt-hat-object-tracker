@@ -1,6 +1,6 @@
 # 06 — CLI wiring and end-to-end run
 
-Status: ready-for-agent
+Status: done (implemented in d75e61c on feat/bird-detection-loop)
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # 05 — Detections sidecar (JSONL)
 
-Status: ready-for-agent
+Status: done (implemented in d75e61c on feat/bird-detection-loop)
 
 ## Goal
 

@@ -1,5 +1,10 @@
 # Zoom Inset follows top-N detections with no cross-frame association
 
+> **Reversed by ADR-0007 for the `--track` path only.** This ADR still governs the
+> `--no-track` (confidence-mode) inset unchanged. Under `--track`, identity-stable panels
+> are driven from `tracker_id`s — exactly the "once that stage exists" escape hatch this
+> ADR names below.
+
 The Zoom Inset can follow up to N birds (`--zoom-max`, default 1), rendered as a
 right-edge strip of Zoom Panels. Each frame we take the N highest-confidence Detections,
 order the panels by confidence, and draw only what that frame contains — fewer

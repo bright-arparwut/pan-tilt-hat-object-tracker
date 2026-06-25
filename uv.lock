@@ -2088,7 +2088,7 @@ dev = [
 requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "opencv-python", specifier = ">=4.10.0" },
-    { name = "supervision", specifier = ">=0.25.0" },
+    { name = "supervision", specifier = ">=0.25.0,<0.30" },
     { name = "tqdm", specifier = ">=4.66" },
     { name = "ultralytics", specifier = ">=8.3.0" },
 ]

@@ -1,6 +1,6 @@
 # 02 — Video I/O and frame loop skeleton
 
-Status: ready-for-agent
+Status: done (implemented in d75e61c on feat/bird-detection-loop)
 
 ## Goal
 

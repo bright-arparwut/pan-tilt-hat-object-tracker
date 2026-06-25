@@ -36,7 +36,17 @@ single-object-tracking stage (the repo's eventual goal) without rework.
   false-positive filter. A noisy sidecar is *by design*.
 - **ADR-0005** — The Zoom Inset follows the top-N detections by confidence
   (`--zoom-max`); panels are confidence-ordered with no cross-frame association (flicker
-  accepted), since identity is the future tracker's job (ADR-0001).
+  accepted), since identity is the future tracker's job (ADR-0001). *(Reversed by ADR-0007
+  for the `--track` path; still governs `--no-track`.)*
+- **ADR-0006** — Tracking is pulled into the loop behind `--track` (default on) via
+  `sv.ByteTrack` fed the per-frame `sv.Detections` — **not** `model.track()`, which can't
+  consume sliced/merged detections. Revises ADR-0001. The sidecar keeps every raw row and
+  adds a nullable `track_id`; under `--track` the video draws confirmed tracks + `#id`
+  labels + trails.
+- **ADR-0007** — Under `--track` the Zoom Inset becomes identity-pinned: each panel binds to
+  a `tracker_id` in a fixed slot, renders black when its bird is missing (held through the
+  lost-track buffer), and `--zoom-track-id` locks the inset to one bird (single-object
+  tracking).
 
 ## Pipeline / data flow
 
@@ -79,7 +89,11 @@ sidecar, zoom inset, future ByteTrack) is identical regardless of path.
 | `--thread-workers` | `4` | Parallel slice inference |
 | `--zoom / --no-zoom` | `--zoom` | PiP zoom inset on/off |
 | `--zoom-size` | `0.05` | Zoom crop side as a fraction of frame width; magnification = 0.25 / zoom-size (≈5× at the default N=1) |
-| `--zoom-max` | `1` | Follow up to N detections (top-N by confidence); `1` = single inset. Larger N shrinks each panel → lower magnification, so lower `--zoom-size` to compensate (ADR-0005) |
+| `--zoom-max` | `1` | Follow up to N detections (top-N by confidence under `--no-track`; first-seen id-pinned slots under `--track`); `1` = single inset (ADR-0005/0007) |
+| `--track / --no-track` | `--track` | In-loop `sv.ByteTrack` tracking (ADR-0006) |
+| `--track-buffer` | `30` | `lost_track_buffer` — frames a lost id (and its black zoom slot) is held |
+| `--track-activation` | `0.25` | `track_activation_threshold` — min conf to start a track (above recall-first `--conf`) |
+| `--zoom-track-id` | `None` | Lock the inset to one `tracker_id` (single-object mode; implies `--track`) (ADR-0007) |
 | `--output` | `<source>.annotated.mp4` | Annotated video path |
 | `--sidecar` | `<source>.detections.jsonl` | JSONL sidecar path |
 
@@ -95,7 +109,14 @@ sidecar, zoom inset, future ByteTrack) is identical regardless of path.
   {"frame": 0, "detections": [{"xyxy": [x1,y1,x2,y2], "conf": 0.62, "cls": 14, "name": "bird"}]}
   ```
   `xyxy` are pixel coords in source resolution. Frames with no detections still emit a
-  line with an empty `detections` list.
+  line with an empty `detections` list. Under `--track`, **every raw row is preserved** and
+  each gains `"track_id": int|null` (int on a confirmed track, `null` on recall-first noise
+  — ADR-0004/0006); under `--no-track` the `track_id` key is omitted (today's schema).
+- **Tracking (`--track`, default on, ADR-0006):** `sv.ByteTrack` runs in the loop on the
+  per-frame `sv.Detections` (slice-agnostic). The annotated video then draws **confirmed
+  tracks only**, each with a `#tracker_id` label and a short motion trail, and the Zoom
+  Inset switches to identity mode (id-pinned fixed slots, black-on-missing; `--zoom-track-id`
+  locks one bird — ADR-0007).
 
 ## Defaults & behaviour (not separately grilled)
 
@@ -138,10 +159,18 @@ The loop is resolution-agnostic by design (ADR-0002):
    right-edge strip; the slot-0 (top-confidence) panel is EMA-smoothed and does not
    teleport. Empty frames draw no panels (no hold-last); `--zoom-max 0` exits non-zero.
 6. Bad `--source` exits non-zero with a clear message; no partial/corrupt outputs left.
+7. `--track` (default): sidecar rows gain `track_id` (int/null, all raw rows kept); video
+   shows confirmed tracks + `#id` + trails; identity-mode zoom with fixed id-pinned slots
+   (black-on-missing, held through `--track-buffer`). `--no-track` reproduces 1–6 exactly.
+8. `--zoom-track-id K` locks the inset to one bird; tracking behaves identically under
+   `--slice` and `--no-slice`. `--no-track --zoom-track-id`, `--track-buffer 0`, and
+   `--track-activation` out of (0,1] each exit non-zero with a clear message.
 
 ## Future (next phase, not now)
 
-Add a tracking stage that consumes the sidecar (or the in-memory `sv.Detections`) via
-`sv.ByteTrack`, drawing `tracker_id`s and `sv.TraceAnnotator` trails on the video. This
-is the false-positive filter referenced in ADR-0004 and the reason for ADR-0001's
-standalone-detection contract.
+In-loop tracking via `sv.ByteTrack` is now delivered (ADR-0006/0007, issue 08) — the
+false-positive filter of ADR-0004 and the realisation of ADR-0001's standalone-detection
+handoff. Remaining: dedicated **single-object tracking** beyond the `--zoom-track-id` lock
+(e.g. re-acquisition after long gaps, appearance models), and persisting tracks to their own
+machine-facing artifact if a downstream consumer needs the confirmed-track stream split out
+from the raw sidecar.
