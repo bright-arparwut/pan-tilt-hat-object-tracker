@@ -34,6 +34,9 @@ single-object-tracking stage (the repo's eventual goal) without rework.
   toolkit (slicing + annotation + video sink + future ByteTrack).
 - **ADR-0004** — Recall-first detection (low `--conf` ~0.15); the future tracker is the
   false-positive filter. A noisy sidecar is *by design*.
+- **ADR-0005** — The Zoom Inset follows the top-N detections by confidence
+  (`--zoom-max`); panels are confidence-ordered with no cross-frame association (flicker
+  accepted), since identity is the future tracker's job (ADR-0001).
 
 ## Pipeline / data flow
 
@@ -51,8 +54,8 @@ video file ─▶ frame loop (sv.get_video_frames_generator)
         ▼                  ▼
   annotate frame      append to sidecar (JSONL)
   (boxes + zoom        {"frame": i, "detections":[...]}
-   inset, EMA-smoothed
-   on top-conf bird)
+   inset: top-N
+   panels by conf)
         ▼
   sv.VideoSink.write_frame
 ```
@@ -75,14 +78,18 @@ sidecar, zoom inset, future ByteTrack) is identical regardless of path.
 | `--overlap-filter` | `nms` | Slice merge strategy (`nms`/`nmm`) |
 | `--thread-workers` | `4` | Parallel slice inference |
 | `--zoom / --no-zoom` | `--zoom` | PiP zoom inset on/off |
-| `--zoom-size` | `0.05` | Zoom crop side as a fraction of frame width; magnification = 0.25 / zoom-size (≈5×) |
+| `--zoom-size` | `0.05` | Zoom crop side as a fraction of frame width; magnification = 0.25 / zoom-size (≈5× at the default N=1) |
+| `--zoom-max` | `1` | Follow up to N detections (top-N by confidence); `1` = single inset. Larger N shrinks each panel → lower magnification, so lower `--zoom-size` to compensate (ADR-0005) |
 | `--output` | `<source>.annotated.mp4` | Annotated video path |
 | `--sidecar` | `<source>.detections.jsonl` | JSONL sidecar path |
 
 ## Outputs
 
 - **Annotated video** (`sv.VideoSink`, source fps/resolution preserved): thin boxes +
-  Zoom Inset (PiP magnified view, EMA-smoothed centre on top-confidence detection).
+  Zoom Inset — a right-edge strip of up to `--zoom-max` magnified Zoom Panels following
+  the top-N detections by confidence (slot-0/top-confidence panel EMA-smoothed; default
+  N=1 is a single inset). Reflects only the current frame: empty frames draw no panels
+  (no hold-last), and panels carry no cross-frame identity (ADR-0005).
 - **Detections sidecar** (JSONL, one object per frame):
   ```json
   {"frame": 0, "detections": [{"xyxy": [x1,y1,x2,y2], "conf": 0.62, "cls": 14, "name": "bird"}]}
@@ -127,7 +134,9 @@ The loop is resolution-agnostic by design (ADR-0002):
    same artifact shapes.
 3. `--weights custom.pt` loads custom weights and keeps all classes (no forced bird filter).
 4. Sidecar lines validate against the schema above; `xyxy` are source-resolution pixels.
-5. Zoom inset follows the top-confidence detection and does not teleport frame-to-frame.
+5. Zoom inset follows the top-N detections by confidence (`--zoom-max`, default 1) as a
+   right-edge strip; the slot-0 (top-confidence) panel is EMA-smoothed and does not
+   teleport. Empty frames draw no panels (no hold-last); `--zoom-max 0` exits non-zero.
 6. Bad `--source` exits non-zero with a clear message; no partial/corrupt outputs left.
 
 ## Future (next phase, not now)
