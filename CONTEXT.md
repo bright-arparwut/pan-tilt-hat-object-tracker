@@ -35,8 +35,15 @@ run (one JSON object per frame — frame index plus its list of Detections), wri
 beside the Annotated Video. The tracker-ready handoff a future tracking stage consumes.
 _Avoid_: log, dump, results file
 
-**Zoom Inset**:
-A picture-in-picture panel composited into the Annotated Video showing a magnified
-view of a single region, centred (with temporal smoothing) on the highest-confidence
-Detection so that very small birds are legible. Shows one region only, by design.
+**Zoom Panel**:
+One magnified picture-in-picture crop composited into the Annotated Video, centred on a
+single Detection so that a very small bird is legible.
 _Avoid_: PiP (bare), zoom window, magnifier
+
+**Zoom Inset**:
+The set of up to N Zoom Panels composited into the Annotated Video — one per Detection,
+chosen as the current frame's highest-confidence Detections (N is configurable; at N=1
+it is a single panel on the top-confidence Detection). Reflects only the current frame:
+panels carry no cross-frame identity, since associating the same bird across frames is
+the tracker's role (ADR-0001).
+_Avoid_: PiP (bare), zoom window, magnifier, panel wall

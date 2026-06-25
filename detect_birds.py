@@ -36,6 +36,7 @@ ZOOM_PANEL_FRACTION = 0.25  # inset panel side as a fraction of frame width
 # effective magnification = ZOOM_PANEL_FRACTION / zoom_size (≈5x at defaults)
 ZOOM_EMA_ALPHA = 0.3  # smoothing on the inset centre (lower = smoother)
 ZOOM_BORDER_BGR = (0, 255, 0)
+ZOOM_MIN_CROP_PX = 8  # floor on the crop side so tiny --zoom-size stays sampleable
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,15 @@ class RunPaths:
     source: Path
     output: Path
     sidecar: Path
+
+
+@dataclass(frozen=True)
+class ZoomConfig:
+    """Zoom Inset settings for a run (see CONTEXT.md: Zoom Inset / Zoom Panel)."""
+
+    enabled: bool
+    size: float  # crop side as a fraction of frame width
+    max_panels: int  # follow the top-N detections by confidence (1 = single inset)
 
 
 # --- device ------------------------------------------------------------------------
@@ -139,42 +149,80 @@ def detection_records(detections: sv.Detections) -> list[dict]:
 
 
 # --- zoom inset --------------------------------------------------------------------
-def _top_center(detections: sv.Detections) -> tuple[float, float] | None:
+def top_centers(detections: sv.Detections, n: int) -> list[tuple[float, float]]:
+    """Centres of the ``n`` highest-confidence Detections, confidence-descending.
+
+    Empty (or confidence-less) Detections yield ``[]`` — the caller draws no panels.
+    """
     if len(detections) == 0 or detections.confidence is None:
-        return None
-    i = int(np.argmax(detections.confidence))
-    x1, y1, x2, y2 = detections.xyxy[i]
-    return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+        return []
+    conf = np.asarray(detections.confidence)
+    order = np.argsort(conf)[::-1][:n]  # confidence-descending, capped at n
+    centers: list[tuple[float, float]] = []
+    for i in order:
+        x1, y1, x2, y2 = detections.xyxy[i]
+        centers.append(((x1 + x2) / 2.0, (y1 + y2) / 2.0))
+    return centers
 
 
-def _smooth_center(target, prev):
+def _smooth_center(
+    target: tuple[float, float] | None, prev: tuple[float, float] | None
+) -> tuple[float, float] | None:
+    """EMA the inset centre toward ``target``; ``None`` resets (WYSIWYG — no hold-last)."""
     if target is None:
-        return prev  # hold last known region
+        return None  # empty frame -> drop the inset; reappearing bird snaps, no drift
     if prev is None:
         return target
     a = ZOOM_EMA_ALPHA
     return (a * target[0] + (1 - a) * prev[0], a * target[1] + (1 - a) * prev[1])
 
 
-def draw_zoom_inset(canvas, source_frame, center, zoom_size, frame_wh):
-    """Composite a magnified crop (centred on ``center``) into the top-right corner."""
-    if center is None:
-        return canvas
+def _draw_one_panel(
+    canvas: np.ndarray,
+    source_frame: np.ndarray,
+    center: tuple[float, float],
+    zoom_size: float,
+    frame_wh: tuple[int, int],
+    panel: int,
+    top: int,
+) -> None:
+    """Composite one magnified crop into the right-edge slot starting at row ``top``."""
     fw, fh = frame_wh
-    crop = max(8, int(zoom_size * fw))
+    crop = max(ZOOM_MIN_CROP_PX, int(zoom_size * fw))
     crop = min(crop, fh, fw)
     x1 = int(np.clip(center[0] - crop / 2, 0, fw - crop))
     y1 = int(np.clip(center[1] - crop / 2, 0, fh - crop))
     region = source_frame[y1 : y1 + crop, x1 : x1 + crop]
-    panel = min(int(ZOOM_PANEL_FRACTION * fw), fh)
     region = cv2.resize(region, (panel, panel), interpolation=cv2.INTER_LINEAR)
-    canvas[0:panel, fw - panel : fw] = region
-    cv2.rectangle(canvas, (fw - panel, 0), (fw - 1, panel - 1), ZOOM_BORDER_BGR, 2)
+    canvas[top : top + panel, fw - panel : fw] = region
+    cv2.rectangle(canvas, (fw - panel, top), (fw - 1, top + panel - 1), ZOOM_BORDER_BGR, 2)
+
+
+def draw_zoom_panels(
+    canvas: np.ndarray,
+    source_frame: np.ndarray,
+    centers: list[tuple[float, float]],
+    zoom_size: float,
+    frame_wh: tuple[int, int],
+    zoom_max: int,
+) -> np.ndarray:
+    """Composite up to ``zoom_max`` magnified crops as a strip down the right edge.
+
+    Panel side = ``min(0.25*fw, fh // zoom_max)``, so slots are a fixed size for a given
+    ``zoom_max`` and frames with fewer detections simply draw fewer panels (WYSIWYG). At
+    ``zoom_max == 1`` this is the single top-right inset.
+    """
+    if not centers:
+        return canvas  # no detections this frame -> no strip
+    fw, fh = frame_wh
+    panel = min(int(ZOOM_PANEL_FRACTION * fw), fh // max(1, zoom_max))
+    for k, center in enumerate(centers):
+        _draw_one_panel(canvas, source_frame, center, zoom_size, frame_wh, panel, k * panel)
     return canvas
 
 
 # --- loop --------------------------------------------------------------------------
-def run(cfg: DetectConfig, paths: RunPaths, weights: str, zoom: bool, zoom_size: float) -> None:
+def run(cfg: DetectConfig, paths: RunPaths, weights: str, zoom: ZoomConfig) -> None:
     video_info = sv.VideoInfo.from_video_path(str(paths.source))
     frame_wh = video_info.resolution_wh
 
@@ -198,9 +246,14 @@ def run(cfg: DetectConfig, paths: RunPaths, weights: str, zoom: bool, zoom_size:
                 json.dumps({"frame": idx, "detections": detection_records(detections)}) + "\n"
             )
             annotated = box_annotator.annotate(scene=frame.copy(), detections=detections)
-            if zoom:
-                zoom_center = _smooth_center(_top_center(detections), zoom_center)
-                annotated = draw_zoom_inset(annotated, frame, zoom_center, zoom_size, frame_wh)
+            if zoom.enabled:
+                centers = top_centers(detections, zoom.max_panels)
+                zoom_center = _smooth_center(centers[0] if centers else None, zoom_center)
+                if centers:
+                    centers = [zoom_center, *centers[1:]]  # slot 0 smoothed, rest raw
+                annotated = draw_zoom_panels(
+                    annotated, frame, centers, zoom.size, frame_wh, zoom.max_panels
+                )
             sink.write_frame(annotated)
 
 
@@ -217,6 +270,15 @@ def _resolve_classes(args, weights_is_default: bool) -> tuple[int, ...] | None:
     if weights_is_default:
         return (COCO_BIRD_CLASS_ID,)  # COCO default -> birds only
     return None  # custom weights -> keep all classes
+
+
+def validation_error(zoom_size: float, zoom_max: int) -> str | None:
+    """Return a user-facing message for an invalid arg combination, else ``None``."""
+    if not 0.0 < zoom_size <= 1.0:
+        return "--zoom-size must be in (0, 1]"
+    if zoom_max < 1:
+        return "--zoom-max must be >= 1"
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -240,6 +302,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Picture-in-picture zoom inset (default: on)")
     p.add_argument("--zoom-size", type=float, default=DEFAULT_ZOOM_SIZE,
                    help="Zoom crop side as fraction of frame width")
+    p.add_argument("--zoom-max", type=int, default=1,
+                   help="Follow up to N detections (top-N by confidence); default 1")
     p.add_argument("--output", default=None, help="Annotated video path")
     p.add_argument("--sidecar", default=None, help="JSONL detections sidecar path")
     return p
@@ -257,8 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - surface any decode/open failure clearly
         print(f"error: could not open video '{source}': {exc}", file=sys.stderr)
         return 1
-    if not 0.0 < args.zoom_size <= 1.0:
-        print("error: --zoom-size must be in (0, 1]", file=sys.stderr)
+    err = validation_error(args.zoom_size, args.zoom_max)
+    if err:
+        print(f"error: {err}", file=sys.stderr)
         return 1
 
     cfg = DetectConfig(
@@ -273,9 +338,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     paths = _derive_paths(source, args.output, args.sidecar)
 
+    zoom = ZoomConfig(enabled=args.zoom, size=args.zoom_size, max_panels=args.zoom_max)
     print(f"device={cfg.device} slicing={'on' if cfg.use_slicing else 'off'} "
-          f"conf={cfg.conf} classes={cfg.classes}")
-    run(cfg, paths, args.weights, args.zoom, args.zoom_size)
+          f"conf={cfg.conf} classes={cfg.classes} "
+          f"zoom={'on' if zoom.enabled else 'off'} zoom_max={zoom.max_panels}")
+    run(cfg, paths, args.weights, zoom)
     print(f"wrote {paths.output}\nwrote {paths.sidecar}")
     return 0
 
