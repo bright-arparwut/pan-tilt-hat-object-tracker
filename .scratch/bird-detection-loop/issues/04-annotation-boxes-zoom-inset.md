@@ -1,6 +1,10 @@
 # 04 — Annotation: boxes + picture-in-picture zoom inset
 
-Status: ready-for-agent
+Status: done (implemented in d75e61c on feat/bird-detection-loop; zoom-size default corrected 0.15 → 0.05)
+
+Superseded in part by issue 07 (multi-bird zoom): the inset now follows the top-N
+detections via `--zoom-max` (default 1 = this single-inset behaviour), and empty frames
+draw no strip — no hold-last (see ADR-0005). Points changed below are annotated inline.
 
 ## Goal
 
@@ -22,7 +26,9 @@ the top-confidence bird (so ~5px birds are visible).
     magnification = 0.25 / zoom-size (≈5× at defaults). NOTE: a too-large crop defeats
     the inset — verified a 0.15 default gave only ~1.7× and hid the bird; 0.05 → ~5×.
   - No detections → no inset (or last-known, decide and document); frame still written.
+    [07 resolved: no strip, no hold-last — WYSIWYG (ADR-0005).]
 - Single region only — documented limitation (CONTEXT: Zoom Inset).
+  [07 superseded: up to N regions via `--zoom-max`; N=1 keeps this behaviour.]
 - Known behaviour: the inset follows `argmax(confidence)`. When every detection is
   near-threshold noise (recall-first, ADR-0004), the top pick teleports and the EMA
   centre drifts to empty background; with a genuine high-confidence bird it tracks
