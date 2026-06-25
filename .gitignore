@@ -223,3 +223,6 @@ __marimo__/
 # Detection-loop outputs
 *.annotated.mp4
 *.detections.jsonl
+
+# macOS
+.DS_Store
