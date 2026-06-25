@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Model weights (downloaded, not source)
+*.pt
+
+# Detection-loop outputs
+*.annotated.mp4
+*.detections.jsonl
+
+# macOS
+.DS_Store
