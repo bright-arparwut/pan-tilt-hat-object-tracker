@@ -25,7 +25,8 @@ single-object-tracking stage (the repo's eventual goal) without rework.
 **Out of scope (future phases):**
 - Tracking (ByteTrack) and single-object tracking — deferred; this loop only makes the
   pipeline *tracker-ready* via the sidecar (see ADR-0001).
-- Live / real-time stream ingestion — offline files only.
+- ~~Live / real-time stream ingestion — offline files only.~~ **Now delivered** by
+  `.scratch/live-mode/` (ADR-0010): camera index / stream URL via `--source`, on-screen preview.
 - Model training / fine-tuning — weights are supplied, not produced here.
 
 ## Key decisions (see `docs/adr/`)

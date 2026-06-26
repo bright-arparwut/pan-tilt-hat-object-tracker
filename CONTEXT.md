@@ -4,7 +4,8 @@ A pipeline for detecting and tracking objects in video. A backend-agnostic detec
 (YOLO today) runs over each frame — optionally under sliced inference so small objects
 survive at native resolution — and an in-loop tracker assigns identities, producing an
 annotated output video and a machine-readable detections record. Any class, any weights;
-birds are just one example.
+birds are just one example. The same loop runs **Offline** over a video file or **Live**
+from a camera or stream.
 
 ## Language
 
@@ -40,8 +41,9 @@ tracking is enabled (`--track`); the [Detector] itself emits identity-free Detec
 _Avoid_: tracklet (bare), object id, trace (that is the drawn trail)
 
 **Detection Loop**:
-The per-frame cycle that reads a frame, runs the [Detector], optionally tracks, and writes
-results (annotated video and/or detection records).
+The per-frame cycle that reads a frame from a [Frame Source], runs the [Detector], optionally
+tracks, and hands the annotated frame to a [Frame Sink] — optionally writing detection records
+alongside. Source- and sink-agnostic: the same loop serves [Offline Mode] and [Live Mode].
 
 **Sliced Inference**:
 Running the [Detector] on overlapping sub-regions of a frame and merging the results,
@@ -87,3 +89,47 @@ that Track. The strip never reflows: while the Track is temporarily missing the 
 drawn black (held through ByteTrack's lost-track buffer); the slot is freed for a new
 Track only once ByteTrack truly drops the id (ADR-0007).
 _Avoid_: cell, window, lane
+
+### Sources, sinks & modes (Live vs Offline, ADR-0010)
+
+**Frame Source**:
+The seam the [Detection Loop] reads frames from: it yields frames and exposes the run's
+resolution, frame rate, and total frame count (absent when unbounded). A backend-agnostic
+interface mirroring [Detector] — the loop never knows whether frames come from a file or a
+camera.
+_Avoid_: reader, capture (bare), input
+
+**File Source**:
+A [Frame Source] over a finite video file — the original offline path. Has a known frame
+count and frame rate; the loop runs to end-of-file.
+_Avoid_: video (bare), clip source
+
+**Live Source**:
+A [Frame Source] over a camera (by index) or a stream URL — unbounded, with no total frame
+count and a frame rate that may only be nominal. Frames arrive in real time whether or not
+the loop is ready, so a slow loop sees growing latency or driver-dropped frames, and the
+frame index counts *received* frames, not wall-clock time.
+_Avoid_: realtime source, camera (bare — a stream URL is also a Live Source)
+
+**Frame Sink**:
+The seam the [Detection Loop] hands each annotated frame to: `show(frame) -> keep_going`,
+where a false return ends the run (e.g. the viewer quit). A backend-agnostic interface — the
+loop never knows whether the frame is written to a file or shown on screen, and sinks
+compose (a [Live Preview] plus a file recorder).
+_Avoid_: writer, output (bare), display
+
+**Live Preview**:
+The [Frame Sink] that shows annotated frames in an on-screen window — the primary output in
+[Live Mode]. Closing the window or pressing `q` ends the run.
+_Avoid_: viewer, monitor, display (bare)
+
+**Offline Mode**:
+The run shape over a [File Source]: process a finite video to completion, producing an
+[Annotated Video] and a [Detections Sidecar]. Chosen by source type, not a flag.
+_Avoid_: batch mode
+
+**Live Mode**:
+The run shape over a [Live Source]: process frames as they arrive and show a [Live Preview],
+running until the viewer quits. Chosen by source type, not a flag. Writes nothing to disk
+unless asked.
+_Avoid_: realtime mode

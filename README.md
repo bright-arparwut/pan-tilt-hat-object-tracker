@@ -39,7 +39,34 @@ uv run track --source clip.mp4 --weights my_model.pt
 ```
 
 Outputs default to `<source>.annotated.mp4` and `<source>.detections.jsonl`.
-Run `uv run track --help` for the full flag list.
+Run `uv run track --help` for the full flag list, or see the
+[CLI cheat sheet](docs/cli-cheatsheet.md) for grouped flags and common recipes.
+
+## Live mode (camera / stream)
+
+The **mode is inferred from `--source`** (ADR-0010): a file path is **Offline**; a camera
+index or stream URL is **Live**, streaming annotated frames into an on-screen preview window.
+
+```bash
+# Default webcam — a live preview of plain detection boxes (press q or close the window to quit)
+uv run track --source 0
+
+# An RTSP / HTTP stream takes the same path
+uv run track --source rtsp://camera.local/stream
+
+# Live is noisy without tracking (conf stays 0.15) — filter with a higher --conf …
+uv run track --source 0 --conf 0.3
+
+# … or turn tracking back on (off by default in Live)
+uv run track --source 0 --track
+
+# Opt in to persistence: a JSONL sidecar (rows carry a capture ts) and/or an annotated recording
+uv run track --source 0 --sidecar live.jsonl --record live.mp4
+```
+
+Live defaults are the leanest config — slicing, tracking, and the zoom inset are **off**, and
+nothing is written unless you pass `--sidecar` / `--record`. Each can be re-enabled explicitly
+(`--track`, `--zoom`, `--slice`). Offline defaults are unchanged. See ADR-0010 for the design.
 
 ## Notes
 
@@ -54,3 +81,7 @@ Run `uv run track --help` for the full flag list.
   carry a `track_id`, dropped noise rows carry `null`.
 - **Cost.** High-res + slicing runs tens of forward passes per frame — offline and slow;
   `--thread-workers` and a CUDA GPU help. Correctness is unaffected.
+- **Live, not realtime.** Live processes every frame sequentially and does *not* guarantee a
+  latency bound — if detection can't keep up, the preview lags or the OS drops frames, and a
+  `--record` file (written at nominal fps) may be time-compressed (ADR-0010). The Live sidecar
+  frame index counts *received* frames, so each row carries a capture `ts`.

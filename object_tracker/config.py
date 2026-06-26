@@ -13,6 +13,10 @@ DEFAULT_SLICE_WH = (640, 640)
 DEFAULT_OVERLAP_RATIO = (0.2, 0.2)
 DEFAULT_THREAD_WORKERS = 4
 DEFAULT_TRACK_BUFFER = 30  # lost_track_buffer: frames a lost id is held (ADR-0006)
+# Live cameras/streams sometimes report fps=0 (CAP_PROP_FPS). We need a positive nominal
+# value because it feeds ByteTrack.frame_rate and annotator scaling (both frame-count based),
+# so fall back to this when the device doesn't report one (ADR-0010 §Consequences).
+DEFAULT_CAMERA_FPS = 30
 DEFAULT_TRACK_ACTIVATION = 0.25  # min conf to start a track; sits above recall-first conf
 DEFAULT_ZOOM_SIZE = 0.05  # crop side as a fraction of frame width
 ZOOM_PANEL_FRACTION = 0.25  # inset panel side as a fraction of frame width
