@@ -1,6 +1,6 @@
 # 04 — Rename & de-brand: detect-birds → track, project → object-tracker
 
-Status: ready-for-agent
+Status: done (implemented in ef2674d; GitHub repo/dir rename still pending — out-of-band user action)
 
 ## Goal
 

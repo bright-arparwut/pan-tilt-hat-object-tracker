@@ -1,6 +1,6 @@
 # 02 — Backend-agnostic Detector seam + SlicedDetector decorator
 
-Status: ready-for-agent
+Status: done (implemented in ef2674d; weights moved into DetectConfig so build_detector(cfg) matches the PRD factory signature)
 
 ## Goal
 
