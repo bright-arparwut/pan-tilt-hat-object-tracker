@@ -1,0 +1,85 @@
+"""Unit tests for the Detector seam: SlicedDetector decorator + build_detector factory.
+
+Proves backend-agnosticism — a fake non-YOLO Detector is wrapped and driven by
+``SlicedDetector`` with no ultralytics import — and the factory's slicing toggle. The
+live YOLO equivalence is covered by the end-to-end smoke run.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import supervision as sv
+
+import object_tracker.detection as detection
+from object_tracker.config import DetectConfig
+from object_tracker.detection import SlicedDetector, build_detector
+
+
+class _FakeDetector:
+    """Backend-agnostic stub: counts calls, returns a fixed per-slice Detections.
+
+    Accepts the ``YoloDetector(weights, conf, classes, device)`` signature so it can stand
+    in for the backend under ``build_detector`` without importing ultralytics.
+    """
+
+    def __init__(self, *args, per_slice: sv.Detections | None = None, **kwargs) -> None:
+        self.calls = 0
+        self._per_slice = per_slice
+
+    def detect(self, frame: np.ndarray) -> sv.Detections:
+        self.calls += 1
+        if self._per_slice is None:
+            return sv.Detections.empty()
+        return self._per_slice
+
+
+def _cfg(**over) -> DetectConfig:
+    base = dict(
+        weights="yolo11n.pt",
+        conf=0.15,
+        classes=(14,),
+        device="cpu",
+        use_slicing=True,
+        slice_wh=(64, 64),
+        overlap_ratio_wh=(0.0, 0.0),
+        overlap_filter="nms",
+        thread_workers=1,
+    )
+    base.update(over)
+    return DetectConfig(**base)  # type: ignore[arg-type]
+
+
+# --- SlicedDetector over a fake Detector (backend-agnostic) ------------------------
+def test_sliced_detector_single_slice_passes_base_detections_through():
+    # slice_wh == frame size with zero overlap -> one slice at origin -> no offset.
+    known = sv.Detections(
+        xyxy=np.array([[1.0, 1.0, 5.0, 5.0]]),
+        confidence=np.array([0.9]),
+        class_id=np.array([0]),
+    )
+    base = _FakeDetector(per_slice=known)
+    sliced = SlicedDetector(base, (64, 64), (0, 0), "nms", 1)
+    out = sliced.detect(np.zeros((64, 64, 3), dtype=np.uint8))
+    assert base.calls == 1
+    assert np.allclose(out.xyxy, known.xyxy)
+
+
+def test_sliced_detector_calls_base_once_per_slice():
+    # 128x64 frame, 64x64 slices, no overlap -> 2 slices -> base.detect called twice.
+    base = _FakeDetector()  # returns empty per slice
+    sliced = SlicedDetector(base, (64, 64), (0, 0), "nms", 1)
+    sliced.detect(np.zeros((64, 128, 3), dtype=np.uint8))
+    assert base.calls == 2
+
+
+# --- build_detector slicing toggle -------------------------------------------------
+def test_build_detector_no_slice_returns_bare_backend(monkeypatch):
+    monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
+    d = build_detector(_cfg(use_slicing=False))
+    assert isinstance(d, _FakeDetector)
+
+
+def test_build_detector_slice_wraps_in_sliced_detector(monkeypatch):
+    monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
+    d = build_detector(_cfg(use_slicing=True))
+    assert isinstance(d, SlicedDetector)
