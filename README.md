@@ -39,7 +39,8 @@ uv run track --source clip.mp4 --weights my_model.pt
 ```
 
 Outputs default to `<source>.annotated.mp4` and `<source>.detections.jsonl`.
-Run `uv run track --help` for the full flag list.
+Run `uv run track --help` for the full flag list, or see the
+[CLI cheat sheet](docs/cli-cheatsheet.md) for grouped flags and common recipes.
 
 ## Live mode (camera / stream)
 
