@@ -1,6 +1,6 @@
 # 05 — Docs sync & supersede
 
-Status: ready-for-agent
+Status: done (implemented in ef2674d on feat/object-tracker-refactor)
 
 ## Goal
 

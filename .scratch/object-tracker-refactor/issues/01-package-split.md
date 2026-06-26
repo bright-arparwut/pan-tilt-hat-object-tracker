@@ -1,6 +1,6 @@
 # 01 — Split detect_birds.py into the object_tracker package (pure move)
 
-Status: ready-for-agent
+Status: done (implemented in ef2674d on feat/object-tracker-refactor)
 
 ## Goal
 

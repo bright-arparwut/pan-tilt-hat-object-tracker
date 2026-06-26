@@ -1,6 +1,6 @@
 # 03 — Drop the bird default (general by default)
 
-Status: ready-for-agent
+Status: done (implemented in ef2674d; custom_weights_keep_all test dropped — its branch no longer exists — and replaced by defaults_to_all_classes + classes_14_reproduces_bird_only)
 
 ## Goal
 

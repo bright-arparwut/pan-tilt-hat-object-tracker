@@ -10,6 +10,7 @@ import supervision as sv
 
 from .config import (
     ZOOM_BORDER_BGR,
+    ZOOM_BORDER_THICKNESS,
     ZOOM_EMA_ALPHA,
     ZOOM_LABEL_MIN_SCALE,
     ZOOM_LABEL_SCALE,
@@ -73,7 +74,9 @@ def _draw_one_panel(
     region = source_frame[y1 : y1 + crop, x1 : x1 + crop]
     region = cv2.resize(region, (panel, panel), interpolation=cv2.INTER_LINEAR)
     canvas[top : top + panel, fw - panel : fw] = region
-    cv2.rectangle(canvas, (fw - panel, top), (fw - 1, top + panel - 1), ZOOM_BORDER_BGR, 2)
+    cv2.rectangle(
+        canvas, (fw - panel, top), (fw - 1, top + panel - 1), ZOOM_BORDER_BGR, ZOOM_BORDER_THICKNESS
+    )
 
 
 def draw_zoom_panels(
@@ -211,7 +214,9 @@ def _draw_slot_label(canvas: np.ndarray, track_id: int, fw: int, panel: int, top
 def _draw_black_panel(canvas: np.ndarray, fw: int, panel: int, top: int) -> None:
     """Render a lost Track's slot in place: black fill + border (label drawn by caller)."""
     canvas[top : top + panel, fw - panel : fw] = 0
-    cv2.rectangle(canvas, (fw - panel, top), (fw - 1, top + panel - 1), ZOOM_BORDER_BGR, 2)
+    cv2.rectangle(
+        canvas, (fw - panel, top), (fw - 1, top + panel - 1), ZOOM_BORDER_BGR, ZOOM_BORDER_THICKNESS
+    )
 
 
 def draw_identity_panels(

@@ -9,6 +9,12 @@ from typing import Protocol, cast
 import numpy as np
 import supervision as sv
 
+from .annotators import (
+    DetectionAnn,
+    build_detection_annotator,
+    build_label_annotator,
+    build_trace_annotator,
+)
 from .config import TrackConfig, ZoomConfig
 from .zoom import ZoomSlots
 
@@ -28,21 +34,18 @@ class _ByteTracker(Protocol):
 class _TrackAnnotators:
     """Confirmed-track video annotators (coloured by ``tracker_id``)."""
 
-    box: sv.BoxAnnotator
+    mark: DetectionAnn  # the DETECTION_STYLE annotator (ADR-0011); coloured by tracker_id
     label: sv.LabelAnnotator
     trace: sv.TraceAnnotator
 
 
 def _build_track_annotators(frame_wh: tuple[int, int]) -> _TrackAnnotators:
-    thickness = sv.calculate_optimal_line_thickness(resolution_wh=frame_wh)
-    text_scale = sv.calculate_optimal_text_scale(resolution_wh=frame_wh)
+    """Compose the themed factory builders into the track bundle (coloured by tracker_id)."""
     track = sv.ColorLookup.TRACK
     return _TrackAnnotators(
-        box=sv.BoxAnnotator(thickness=thickness, color_lookup=track),
-        label=sv.LabelAnnotator(
-            text_scale=text_scale, text_thickness=max(1, thickness - 1), color_lookup=track
-        ),
-        trace=sv.TraceAnnotator(thickness=thickness, color_lookup=track),
+        mark=build_detection_annotator(frame_wh, track),
+        label=build_label_annotator(frame_wh, track),
+        trace=build_trace_annotator(frame_wh, track),
     )
 
 
@@ -85,7 +88,7 @@ def _annotate_confirmed(
         return scene
     labels = [f"#{int(t)}" for t in confirmed.tracker_id]
     scene = ann.trace.annotate(scene, confirmed)
-    scene = ann.box.annotate(scene, confirmed)
+    scene = ann.mark.annotate(scene, confirmed)
     # sv.LabelAnnotator.annotate is mis-stubbed as PIL-only; it accepts/returns ndarray.
     labelled = ann.label.annotate(scene, confirmed, labels=labels)  # pyright: ignore
     return cast(np.ndarray, labelled)

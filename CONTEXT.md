@@ -90,6 +90,25 @@ drawn black (held through ByteTrack's lost-track buffer); the slot is freed for 
 Track only once ByteTrack truly drops the id (ADR-0007).
 _Avoid_: cell, window, lane
 
+**Appearance**:
+The non-CLI styling surface for the [Annotated Video]: the [Detection Style] and palette, label
+and [Track]-trace palette, line and text dimensions, label and trace anchoring, and the [Zoom
+Inset]'s colours and proportions. Lives as constants in `config.py` under an `Appearance`
+banner — deliberately not `--flags`, not a separate file, and not an external config format
+(ADR-0011) — read by a small `annotators.py` factory. Every default reproduces the prior
+output, so editing a constant is the only thing that changes the look.
+_Avoid_: settings, theme, style, config (config is run *behaviour*)
+
+**Detection Style**:
+The selectable way each [Detection] is drawn — one [Appearance] constant (`DETECTION_STYLE`)
+picking a supervision annotator: a box outline (`BOX`, `ROUND`, `CORNER`, `CIRCLE`, `ELLIPSE`),
+a fill or marker (`COLOR`, `DOT`, `TRIANGLE`), or an anonymising pixel-effect (`BLUR`,
+`PIXELATE`). One style at a time, shared by both modes; the default (`BOX`) reproduces the prior
+output. The styles share no constructor, so `annotators.py` builds each its own way. Mask-based
+shapes (mask/polygon/halo) are out of scope — the [Detector] emits no segmentation to draw them
+from (and `halo` would silently draw nothing); see ADR-0011.
+_Avoid_: box style, box type, shape (bare), annotator style
+
 ### Sources, sinks & modes (Live vs Offline, ADR-0010)
 
 **Frame Source**:
