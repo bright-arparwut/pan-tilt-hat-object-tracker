@@ -5,6 +5,21 @@ from __future__ import annotations
 import supervision as sv
 
 
+def frame_record(idx: int, records: list[dict], ts: float | None = None) -> dict:
+    """Wrap one frame's detection records into the JSONL object the sidecar writes.
+
+    Offline (``ts=None``) keeps today's schema **byte-for-byte**: ``{"frame", "detections"}``.
+    Live passes a capture ``ts`` (epoch seconds) — inserted between ``frame`` and
+    ``detections`` — because on a Live Source the frame index counts *received* frames, not
+    wall-clock time (ADR-0010 §Throughput).
+    """
+    record: dict = {"frame": idx}
+    if ts is not None:
+        record["ts"] = ts
+    record["detections"] = records
+    return record
+
+
 def detection_records(
     detections: sv.Detections, track_map: dict[int, int] | None = None
 ) -> list[dict]:

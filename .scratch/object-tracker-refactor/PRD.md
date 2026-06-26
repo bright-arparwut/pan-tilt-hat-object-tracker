@@ -29,7 +29,9 @@ identity. Birds become one example.
 **Out of scope (future phases — design for, don't build):**
 - A second `Detector Backend` (DETR / RF-DETR). The seam is built; the backend is not.
 - Custom-class training/management UX beyond passing `--classes` / custom `--weights`.
-- Live/real-time ingestion, model training, and dedicated single-object re-acquisition
+- ~~Live/real-time ingestion~~ — **now delivered** by `.scratch/live-mode/` (ADR-0010):
+  camera/stream sources behind a Frame Source + Frame Sink seam, with an on-screen preview.
+- Model training and dedicated single-object re-acquisition
   (carried over from the prior PRD's "Future").
 
 ## Key decisions (see `docs/adr/`)

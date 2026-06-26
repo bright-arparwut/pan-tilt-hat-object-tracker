@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from object_tracker.sidecar import detection_records
+from object_tracker.sidecar import detection_records, frame_record
 
 
 # --- detection_records id-join -----------------------------------------------------
@@ -40,3 +40,17 @@ def test_detection_records_track_id_is_plain_int_not_numpy(dets):
     # ByteTrack hands np.int64 ids; the sidecar must serialise plain ints for JSON.
     rec = detection_records(d, {0: np.int64(3)})[0]  # pyright: ignore[reportArgumentType]
     assert rec["track_id"] == 3 and type(rec["track_id"]) is int
+
+
+# --- frame_record schema (Offline byte-identical; Live carries a capture ts) --------
+def test_frame_record_offline_omits_ts_byte_identical():
+    # ts=None (Offline) must stay exactly today's schema: {"frame", "detections"} in order.
+    record = frame_record(7, [{"xyxy": [0, 0, 1, 1]}])
+    assert record == {"frame": 7, "detections": [{"xyxy": [0, 0, 1, 1]}]}
+    assert list(record.keys()) == ["frame", "detections"]
+
+
+def test_frame_record_live_inserts_ts_between_frame_and_detections():
+    record = frame_record(3, [], ts=1234.5)
+    assert record == {"frame": 3, "ts": 1234.5, "detections": []}
+    assert list(record.keys()) == ["frame", "ts", "detections"]
