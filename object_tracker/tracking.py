@@ -9,6 +9,7 @@ from typing import Protocol, cast
 import numpy as np
 import supervision as sv
 
+from .annotators import build_box_annotator, build_label_annotator, build_trace_annotator
 from .config import TrackConfig, ZoomConfig
 from .zoom import ZoomSlots
 
@@ -34,15 +35,12 @@ class _TrackAnnotators:
 
 
 def _build_track_annotators(frame_wh: tuple[int, int]) -> _TrackAnnotators:
-    thickness = sv.calculate_optimal_line_thickness(resolution_wh=frame_wh)
-    text_scale = sv.calculate_optimal_text_scale(resolution_wh=frame_wh)
+    """Compose the themed factory builders into the track bundle (coloured by tracker_id)."""
     track = sv.ColorLookup.TRACK
     return _TrackAnnotators(
-        box=sv.BoxAnnotator(thickness=thickness, color_lookup=track),
-        label=sv.LabelAnnotator(
-            text_scale=text_scale, text_thickness=max(1, thickness - 1), color_lookup=track
-        ),
-        trace=sv.TraceAnnotator(thickness=thickness, color_lookup=track),
+        box=build_box_annotator(frame_wh, track),
+        label=build_label_annotator(frame_wh, track),
+        trace=build_trace_annotator(frame_wh, track),
     )
 
 

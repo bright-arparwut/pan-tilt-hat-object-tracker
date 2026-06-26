@@ -14,9 +14,9 @@ import json
 import time
 from pathlib import Path
 
-import supervision as sv
 from tqdm import tqdm
 
+from .annotators import build_box_annotator
 from .config import TrackConfig, ZoomConfig
 from .detection import Detector
 from .sidecar import detection_records, frame_record
@@ -43,9 +43,7 @@ def run(
     frame_wh = info.resolution_wh
 
     detect = detector.detect
-    box_annotator = sv.BoxAnnotator(
-        thickness=sv.calculate_optimal_line_thickness(resolution_wh=frame_wh)
-    )
+    box_annotator = build_box_annotator(frame_wh)
     rt = (
         _build_track_runtime(zoom, track, frame_wh, round(info.fps))
         if track.enabled
