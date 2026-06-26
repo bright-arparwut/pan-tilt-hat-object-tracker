@@ -27,6 +27,19 @@ class DetectionStyle(Enum):
     PIXELATE = "pixelate"  # sv.PixelateAnnotator — anonymise the box region (no colour)
 
 
+class TrackerKind(Enum):
+    """The selectable multi-object Tracker (ADR-0012), passed to Ultralytics
+    ``model.track()`` as its ``tracker`` argument. Each value is the shipped tracker config
+    filename; ``BYTETRACK`` is the default and reproduces the prior in-loop ByteTrack."""
+
+    BYTETRACK = "bytetrack.yaml"
+    BOTSORT = "botsort.yaml"
+    OCSORT = "ocsort.yaml"
+    DEEPOCSORT = "deepocsort.yaml"
+    FASTTRACKER = "fasttracker.yaml"
+    TRACKTRACK = "tracktrack.yaml"
+
+
 # --- defaults / constants (resolution-relative where it matters) -------------------
 COCO_BIRD_CLASS_ID = 14  # COCO id for "bird" — the canonical example class (--classes 14)
 DEFAULT_WEIGHTS = "yolo11x.pt"
@@ -34,12 +47,15 @@ DEFAULT_CONF = 0.15  # recall-first; tracking is the false-positive filter (ADR-
 DEFAULT_SLICE_WH = (640, 640)
 DEFAULT_OVERLAP_RATIO = (0.2, 0.2)
 DEFAULT_THREAD_WORKERS = 4
-DEFAULT_TRACK_BUFFER = 30  # lost_track_buffer: frames a lost id is held (ADR-0006)
+# Zoom-slot hold: frames a lost id's Zoom Slot is held black. Mirrors the tracker yaml's
+# track_buffer (bytetrack ships 30) so the slot persists exactly as long as the id can
+# revive (ADR-0007/0012). No longer reaches the tracker — model.track() owns its thresholds.
+DEFAULT_TRACK_BUFFER = 30
 # Live cameras/streams sometimes report fps=0 (CAP_PROP_FPS). We need a positive nominal
-# value because it feeds ByteTrack.frame_rate and annotator scaling (both frame-count based),
-# so fall back to this when the device doesn't report one (ADR-0010 §Consequences).
+# value because it feeds annotator scaling (frame-count based), so fall back to this when
+# the device doesn't report one (ADR-0010 §Consequences).
 DEFAULT_CAMERA_FPS = 30
-DEFAULT_TRACK_ACTIVATION = 0.25  # min conf to start a track; sits above recall-first conf
+DEFAULT_TRACKER = TrackerKind.BYTETRACK  # default Tracker (ADR-0012); preserves ADR-0006
 DEFAULT_ZOOM_SIZE = 0.05  # crop side as a fraction of frame width
 
 # --- appearance (non-CLI styling; defaults reproduce prior output — ADR-0011) -------
@@ -94,11 +110,11 @@ class RunPaths:
 
 @dataclass(frozen=True)
 class TrackConfig:
-    """In-loop ByteTrack settings for a run (ADR-0006)."""
+    """Tracking settings for a run (ADR-0012): which Tracker, and the Zoom Slot hold."""
 
     enabled: bool
-    activation: float  # track_activation_threshold (min conf to start a track)
-    buffer: int  # lost_track_buffer (frames a lost id and its zoom slot are held)
+    tracker: TrackerKind  # which Ultralytics tracker model.track() runs
+    buffer: int  # Zoom Slot hold in frames (mirrors the tracker yaml's track_buffer)
 
 
 @dataclass(frozen=True)

@@ -21,18 +21,20 @@ def frame_record(idx: int, records: list[dict], ts: float | None = None) -> dict
 
 
 def detection_records(
-    detections: sv.Detections, track_map: dict[int, int] | None = None
+    detections: sv.Detections, with_track_id: bool = False
 ) -> list[dict]:
     """Serialise detections to plain dicts (source-pixel xyxy).
 
-    Every raw detection is emitted (ADR-0004). When ``track_map`` is given (``--track``),
-    each row gains ``"track_id"`` — the int from the row's confirmed Track, or ``null`` for
-    recall-first noise dropped by ByteTrack (ADR-0006). When ``None`` (``--no-track``) the
-    key is omitted, leaving today's schema byte-for-byte unchanged.
+    When ``with_track_id`` (``--track``), each row gains ``"track_id"`` read straight from the
+    detections' own ``tracker_id`` (ids come pre-attached from ``model.track()`` via
+    ``from_ultralytics`` — ADR-0012), or ``null`` when the frame carries no ids. When
+    ``False`` (``--no-track``) the key is omitted, leaving today's schema byte-for-byte
+    unchanged and recording every raw detection (ADR-0004).
     """
     if len(detections) == 0:
         return []
     names = detections.data.get("class_name") if detections.data else None
+    tracker_id = detections.tracker_id if with_track_id else None
     records = []
     for i in range(len(detections)):
         x1, y1, x2, y2 = (round(float(v), 1) for v in detections.xyxy[i])
@@ -44,8 +46,8 @@ def detection_records(
             "cls": int(cls) if cls is not None else None,
             "name": str(names[i]) if names is not None else None,
         }
-        if track_map is not None:
-            tid = track_map.get(i)
+        if with_track_id:
+            tid = tracker_id[i] if tracker_id is not None else None
             record["track_id"] = int(tid) if tid is not None else None
         records.append(record)
     return records

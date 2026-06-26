@@ -1,7 +1,9 @@
 """YOLO detection backend + the backend-agnostic sliced-inference decorator.
 
 ``YoloDetector`` is a ``Detector`` Backend wrapping one ``YOLO`` model (owning its conf,
-class filter, and device). ``SlicedDetector`` is a ``Detector`` *decorator* that runs any
+class filter, device, and Tracker). It is also a ``TrackingDetector``: ``detect()`` runs
+identity-free prediction, ``track()`` runs Ultralytics ``model.track()`` to assign
+``tracker_id`` (ADR-0012). ``SlicedDetector`` is a ``Detector`` *decorator* that runs any
 base ``Detector`` over slices via ``supervision``'s ``InferenceSlicer`` — backend-agnostic,
 revising ADR-0003's slicing-on-the-YOLO-path assumption. Both return ``sv.Detections``.
 """
@@ -22,7 +24,8 @@ def _overlap_filter(name: str) -> sv.OverlapFilter:
 
 
 class YoloDetector:
-    """A Detector Backend: one ``YOLO`` model with its conf / class filter / device."""
+    """A Detector Backend + TrackingDetector: one ``YOLO`` model owning its conf / class
+    filter / device / Tracker. ``detect()`` is identity-free; ``track()`` assigns ids."""
 
     def __init__(
         self,
@@ -30,15 +33,34 @@ class YoloDetector:
         conf: float,
         classes: tuple[int, ...] | None,
         device: str,
+        tracker: str = "bytetrack.yaml",
     ) -> None:
         self._model = YOLO(weights)
         self._conf = conf
         self._classes = list(classes) if classes else None
         self._device = device
+        self._tracker = tracker
 
     def detect(self, frame: np.ndarray) -> sv.Detections:
         result = self._model(
             frame,
+            conf=self._conf,
+            classes=self._classes,
+            device=self._device,
+            verbose=False,
+        )[0]
+        return sv.Detections.from_ultralytics(result)
+
+    def track(self, frame: np.ndarray) -> sv.Detections:
+        """Run ``model.track`` on one frame, keeping Tracker state across calls (ADR-0012).
+
+        ``persist=True`` carries the Tracker's state between our per-frame calls (we own the
+        loop — never ``source=``). ``from_ultralytics`` reads ``boxes.id`` into ``tracker_id``.
+        """
+        result = self._model.track(
+            frame,
+            persist=True,
+            tracker=self._tracker,
             conf=self._conf,
             classes=self._classes,
             device=self._device,

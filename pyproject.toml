@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "ultralytics>=8.3.0",
-    "supervision>=0.25.0,<0.30",  # sv.ByteTrack (ADR-0006) is removed in 0.30; pin below it
+    "supervision>=0.25.0,<0.30",  # annotators only now (ADR-0012); <0.30 kept conservatively (bump not grilled)
     "opencv-python>=4.10.0",
     "numpy>=1.26",
     "tqdm>=4.66",

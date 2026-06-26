@@ -1,5 +1,12 @@
 # Tracking runs in the loop via sv.ByteTrack (not yolo.track); sidecar keeps raw rows + nullable track_id
 
+> **Status: superseded by ADR-0012.** Once supervision-based sliced inference was dropped,
+> the "sliced-merge constraint" this ADR cites as the reason for `sv.ByteTrack` over
+> `model.track()` no longer held — exactly the "future-phase decision" reserved below. ADR-0012
+> moves tracking to Ultralytics `model.track()` (six selectable trackers) and keeps supervision
+> for annotation only. The sidecar's two-population contract here now applies only to
+> `--no-track` (see ADR-0004's amendment).
+
 Revises ADR-0001 (which deferred tracking and rejected `model.track()`).
 
 The detection loop now runs an optional tracking stage **inside** the loop, behind a

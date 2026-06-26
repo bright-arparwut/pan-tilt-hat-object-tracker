@@ -6,8 +6,9 @@ today) and optional **sliced inference** (the SAHI technique, via `supervision`'
 picture-in-picture zoom inset) and a **per-frame JSONL detections sidecar**.
 
 Any class, any weights — small flying birds are just one example (`--classes 14`).
-Detection is class-agnostic; in-loop `sv.ByteTrack` assigns identities and acts as the
-false-positive filter. Design rationale lives in `CONTEXT.md`, `docs/adr/`, and the PRD at
+Detection is class-agnostic; the selected **Tracker** (Ultralytics `model.track()`, default
+ByteTrack — choose with `--tracker`) assigns identities and acts as the false-positive
+filter. Design rationale lives in `CONTEXT.md`, `docs/adr/`, and the PRD at
 `.scratch/object-tracker-refactor/PRD.md`.
 
 ## Setup (uv)
@@ -57,8 +58,8 @@ uv run track --source rtsp://camera.local/stream
 # Live is noisy without tracking (conf stays 0.15) — filter with a higher --conf …
 uv run track --source 0 --conf 0.3
 
-# … or turn tracking back on (off by default in Live)
-uv run track --source 0 --track
+# … or turn tracking back on (off by default in Live); pick the algorithm with --tracker
+uv run track --source 0 --track --tracker botsort
 
 # Opt in to persistence: a JSONL sidecar (rows carry a capture ts) and/or an annotated recording
 uv run track --source 0 --sidecar live.jsonl --record live.mp4
@@ -76,9 +77,13 @@ nothing is written unless you pass `--sidecar` / `--record`. Each can be re-enab
   tiles automatically on larger frames — same flags scale from test clip to 4K (ADR-0002).
   Slicing is a `SlicedDetector` decorator over any backend, so a future detector gets it
   for free (ADR-0009).
-- **Recall-first.** Default `--conf 0.15` intentionally lets noise through; in-loop
-  ByteTrack filters it (ADR-0004/0006). A noisy sidecar is by design — confirmed tracks
-  carry a `track_id`, dropped noise rows carry `null`.
+- **Tracking via Ultralytics.** `--track` runs `model.track()` per frame (default
+  `bytetrack`; also `botsort`, `ocsort`, `deepocsort`, `fasttracker`, `tracktrack` via
+  `--tracker`); `supervision` stays the annotator (ADR-0012). Thresholds live in the tracker's
+  shipped yaml. `--track` and `--slice` don't combine — tracking wins.
+- **Recall-first.** Default `--conf 0.15` intentionally lets noise through; the Tracker
+  filters it (ADR-0004/0012). Under `--no-track` the sidecar records every raw row; under
+  `--track` it records the Tracker's output, each row carrying its `track_id`.
 - **Cost.** High-res + slicing runs tens of forward passes per frame — offline and slow;
   `--thread-workers` and a CUDA GPU help. Correctness is unaffected.
 - **Live, not realtime.** Live processes every frame sequentially and does *not* guarantee a

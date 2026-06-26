@@ -18,7 +18,8 @@ _Avoid_: model (bare), predictor, inferer
 **Detector Backend**:
 A concrete [Detector] wrapping one detection model (YOLO today; DETR / RF-DETR are
 candidates later). Owns its own confidence threshold, class filter, and device — how it
-honours those is the backend's business.
+honours those is the backend's business. The YOLO backend also hosts the [Tracker]: a sibling
+`track()` runs `model.track()` under `--track` (ADR-0012), leaving `detect()` identity-free.
 _Avoid_: engine, model wrapper
 
 **Sliced Detector**:
@@ -35,10 +36,19 @@ attached to the Detection, not part of what makes it a Detection).
 _Avoid_: hit, box (bare), prediction
 
 **Track**:
-A persistent identity (`tracker_id`) that `sv.ByteTrack` assigns to a series of
+A persistent identity (`tracker_id`) that the [Tracker] assigns to a series of
 Detections judged to be the same object across consecutive frames. Lives only while
-tracking is enabled (`--track`); the [Detector] itself emits identity-free Detections.
+tracking is enabled (`--track`); the [Detector]'s `detect()` emits identity-free Detections,
+while the backend's `track()` is what carries the id (ADR-0012).
 _Avoid_: tracklet (bare), object id, trace (that is the drawn trail)
+
+**Tracker**:
+The multi-object tracking algorithm that assigns [Track] ids, selected by `--tracker`
+(`bytetrack` | `botsort` | `ocsort` | `deepocsort` | `fasttracker` | `tracktrack`) and run
+via Ultralytics `model.track(frame, persist=True)` inside the YOLO [Detector Backend]'s
+`track()`. `supervision` is no longer the tracking engine — only the annotator (ADR-0012,
+superseding the `sv.ByteTrack`-in-loop of ADR-0006).
+_Avoid_: ByteTrack (as the only option), sv.ByteTrack, tracking engine
 
 **Detection Loop**:
 The per-frame cycle that reads a frame from a [Frame Source], runs the [Detector], optionally
@@ -65,6 +75,9 @@ _Avoid_: result video, output (bare)
 The machine-facing output: a per-frame, append-only record of every Detection in a
 run (one JSON object per frame — frame index plus its list of Detections), written
 beside the Annotated Video. The tracker-ready handoff a downstream consumer can read.
+Under `--no-track` it records every raw Detection (recall-first, ADR-0004); under `--track`
+it records the single tracked population [the Tracker] returns, each row carrying its
+`tracker_id` (ADR-0012).
 _Avoid_: log, dump, results file
 
 **Zoom Panel**:
@@ -86,8 +99,9 @@ _Avoid_: PiP (bare), zoom window, magnifier, panel wall
 **Zoom Slot**:
 A fixed position in the identity-mode Zoom Inset, bound to one [Track] for the life of
 that Track. The strip never reflows: while the Track is temporarily missing the slot is
-drawn black (held through ByteTrack's lost-track buffer); the slot is freed for a new
-Track only once ByteTrack truly drops the id (ADR-0007).
+drawn black (held for `--track-buffer` frames); the slot is freed for a new Track once that
+hold elapses (ADR-0007). The buffer is meant to mirror the [Tracker]'s own lost-track window
+so the slot persists exactly as long as the id can revive (ADR-0012).
 _Avoid_: cell, window, lane
 
 **Appearance**:
