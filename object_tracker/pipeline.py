@@ -16,7 +16,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .annotators import build_box_annotator
+from .annotators import build_detection_annotator
 from .config import TrackConfig, ZoomConfig
 from .detection import Detector
 from .sidecar import detection_records, frame_record
@@ -43,7 +43,7 @@ def run(
     frame_wh = info.resolution_wh
 
     detect = detector.detect
-    box_annotator = build_box_annotator(frame_wh)
+    detection_annotator = build_detection_annotator(frame_wh)
     rt = (
         _build_track_runtime(zoom, track, frame_wh, round(info.fps))
         if track.enabled
@@ -75,7 +75,7 @@ def run(
                     )
             else:
                 records = detection_records(detections)
-                annotated = box_annotator.annotate(scene=frame.copy(), detections=detections)
+                annotated = detection_annotator.annotate(scene=frame.copy(), detections=detections)
                 if zoom.enabled:
                     zoom_center = _confidence_zoom(
                         annotated, frame, detections, zoom, frame_wh, zoom_center

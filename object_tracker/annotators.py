@@ -10,18 +10,41 @@ reads its ``ZOOM_*`` constants directly in ``zoom.py``.
 
 from __future__ import annotations
 
+from typing import Callable
+
 import supervision as sv
 
 from .config import (
     ANNOTATION_PALETTE,
     COLOR_LOOKUP_OVERRIDE,
+    DETECTION_STYLE,
     LABEL_POSITION,
     LABEL_TEXT_COLOR,
     TEXT_SCALE_MULT,
     THICKNESS_SCALE,
     TRACE_LENGTH,
     TRACE_POSITION,
+    DetectionStyle,
 )
+
+# Every annotator a DetectionStyle can resolve to (ADR-0011 "Detection style"). They do not
+# share a constructor — box outlines take (color, thickness), fills/markers take (color) only,
+# and Blur/Pixelate take no colour at all — so each style is built by its own callable in
+# ``_DETECTION_STYLES`` below, not a single uniform constructor. ``DetectionAnn`` is a
+# public-API union (preferred over the non-public base class), kept beside the map for sync.
+DetectionAnn = (
+    sv.BoxAnnotator
+    | sv.RoundBoxAnnotator
+    | sv.BoxCornerAnnotator
+    | sv.CircleAnnotator
+    | sv.EllipseAnnotator
+    | sv.ColorAnnotator
+    | sv.DotAnnotator
+    | sv.TriangleAnnotator
+    | sv.BlurAnnotator
+    | sv.PixelateAnnotator
+)
+_StyleBuilder = Callable[[tuple[int, int], sv.ColorLookup], DetectionAnn]
 
 
 def _thickness(frame_wh: tuple[int, int]) -> int:
@@ -40,15 +63,49 @@ def _lookup(default: sv.ColorLookup) -> sv.ColorLookup:
     return COLOR_LOOKUP_OVERRIDE if COLOR_LOOKUP_OVERRIDE is not None else default
 
 
-def build_box_annotator(
-    frame_wh: tuple[int, int], color_lookup: sv.ColorLookup = sv.ColorLookup.CLASS
-) -> sv.BoxAnnotator:
-    """Box annotator; ``color_lookup`` is the mode default (CLASS no-track, TRACK track)."""
-    return sv.BoxAnnotator(
+# --- per-style builders: one constructor shape each (grouped by what they accept) ---
+def _outline(cls: Callable[..., DetectionAnn]) -> _StyleBuilder:
+    """Box-outline shapes: palette colour + resolution-scaled thickness + lookup."""
+    return lambda frame_wh, color_lookup: cls(
         color=ANNOTATION_PALETTE,
         thickness=_thickness(frame_wh),
         color_lookup=_lookup(color_lookup),
     )
+
+
+def _filled(cls: Callable[..., DetectionAnn]) -> _StyleBuilder:
+    """Fill/marker shapes: palette colour + lookup; extents (opacity/radius/…) on sv defaults."""
+    return lambda frame_wh, color_lookup: cls(
+        color=ANNOTATION_PALETTE, color_lookup=_lookup(color_lookup)
+    )
+
+
+def _effect(cls: Callable[..., DetectionAnn]) -> _StyleBuilder:
+    """Anonymising effects: no colour/lookup contract; kernel/pixel size on sv defaults."""
+    return lambda frame_wh, color_lookup: cls()
+
+
+_DETECTION_STYLES: dict[DetectionStyle, _StyleBuilder] = {
+    DetectionStyle.BOX: _outline(sv.BoxAnnotator),
+    DetectionStyle.ROUND: _outline(sv.RoundBoxAnnotator),
+    DetectionStyle.CORNER: _outline(sv.BoxCornerAnnotator),
+    DetectionStyle.CIRCLE: _outline(sv.CircleAnnotator),
+    DetectionStyle.ELLIPSE: _outline(sv.EllipseAnnotator),
+    DetectionStyle.COLOR: _filled(sv.ColorAnnotator),
+    DetectionStyle.DOT: _filled(sv.DotAnnotator),
+    DetectionStyle.TRIANGLE: _filled(sv.TriangleAnnotator),
+    DetectionStyle.BLUR: _effect(sv.BlurAnnotator),
+    DetectionStyle.PIXELATE: _effect(sv.PixelateAnnotator),
+}
+
+
+def build_detection_annotator(
+    frame_wh: tuple[int, int], color_lookup: sv.ColorLookup = sv.ColorLookup.CLASS
+) -> DetectionAnn:
+    """The annotator for the configured ``DETECTION_STYLE`` (ADR-0011); ``color_lookup`` is
+    the mode default (CLASS no-track, TRACK track). Each style builds itself via
+    ``_DETECTION_STYLES``; Blur/Pixelate ignore ``color_lookup`` and the palette."""
+    return _DETECTION_STYLES[DETECTION_STYLE](frame_wh, color_lookup)
 
 
 def build_label_annotator(

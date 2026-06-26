@@ -17,7 +17,8 @@ vs **behaviour** (what the run does, already in `config.py`/the CLI). Naming the
 
 - **Annotator styling** — `ANNOTATION_PALETTE`, `TRACE_LENGTH` (previously the silent
   supervision default of 30), `LABEL_TEXT_COLOR`, `LABEL_POSITION`, `TRACE_POSITION`,
-  `THICKNESS_SCALE`, `TEXT_SCALE_MULT`, `COLOR_LOOKUP_OVERRIDE`.
+  `THICKNESS_SCALE`, `TEXT_SCALE_MULT`, `COLOR_LOOKUP_OVERRIDE`, `DETECTION_STYLE` (selectable
+  per-Detection style — see "Detection style" below).
 - **Zoom styling** — the re-homed `ZOOM_*` aesthetics, plus a new `ZOOM_BORDER_THICKNESS`
   replacing the hardcoded `2` in `zoom.py`.
 - **The defaults invariant.** Override-style knobs (`COLOR_LOOKUP_OVERRIDE`, `LABEL_TEXT_COLOR`)
@@ -28,7 +29,7 @@ vs **behaviour** (what the run does, already in `config.py`/the CLI). Naming the
 
 ## The annotators factory (the load-bearing decision)
 
-- **`annotators.py` is supervision-only.** `build_box_annotator(frame_wh, color_lookup)`,
+- **`annotators.py` is supervision-only.** `build_detection_annotator(frame_wh, color_lookup)`,
   `build_label_annotator(frame_wh)`, `build_trace_annotator(frame_wh)` each read the Appearance
   constants. The no-track path (`pipeline.py`) and the track path (`tracking.py`'s thin
   `_build_track_annotators`, which composes the three into its `_TrackAnnotators` bundle with
@@ -38,6 +39,37 @@ vs **behaviour** (what the run does, already in `config.py`/the CLI). Naming the
   resolution-adaptive sizing is preserved; at `1.0` the output is byte-identical.
 - **Zoom stays cv2/`config`-direct.** `zoom.py` keeps drawing with cv2 and reading the `ZOOM_*`
   constants itself; folding its raster path into the supervision factory would muddy the seam.
+
+## Detection style (added)
+
+`DETECTION_STYLE` selects how each [Detection] is drawn — a `DetectionStyle` enum (`config.py`,
+beside the default) mapped to a supervision annotator by `annotators.py`'s `_DETECTION_STYLES`.
+Same *shape* of decision as the rest of Appearance: an in-code constant, not a CLI flag, shared
+by both modes, default (`BOX` → `sv.BoxAnnotator`) reproducing today's output byte-for-byte.
+
+This started narrower — five thickness-uniform box *shapes* sharing one constructor — and was
+then widened to fills, markers and pixel-effects, which forced the constructor decision below.
+
+- **Per-style builders, not one uniform constructor.** The ten styles split into three
+  constructor groups: outlines (`BOX`, `ROUND`, `CORNER`, `CIRCLE`, `ELLIPSE`) take
+  `(color, thickness, color_lookup)`; fills/markers (`COLOR`, `DOT`, `TRIANGLE`) take
+  `(color, color_lookup)` only; effects (`BLUR`, `PIXELATE`) take no colour at all. Because they
+  do not share a contract, `_DETECTION_STYLES` maps each style to its own builder
+  (`_outline`/`_filled`/`_effect`) instead of a single `cls(color=…, thickness=…)` call. Extras
+  (`opacity`, `radius`, `roundness`, kernel/pixel size) ride supervision's defaults — no new
+  Appearance constants (YAGNI).
+- **`BLUR`/`PIXELATE` ignore the palette and `color_lookup`** — they anonymise the box region
+  rather than colour it. Their builders pass no colour args; in the track path the `#id` label
+  still renders on top, so an anonymised object stays identifiable by id.
+- **Mask-based styles are excluded by necessity** — `Mask`/`Polygon`/`Halo` need a segmentation
+  mask the [Detector] does not emit (it produces boxes, not masks); `HaloAnnotator` in
+  particular is a *silent no-op* on mask-less detections — it draws nothing, raises nothing — so
+  offering it would be a trap. `HeatMap` (stateful cross-frame aggregate) and `PercentageBar`
+  (a confidence meter, not a per-object mark) are out for being a different shape of thing.
+- **The widened type is a public-API union** — `DetectionAnn = sv.BoxAnnotator |
+  sv.RoundBoxAnnotator | … | sv.PixelateAnnotator` (ten members), declared next to
+  `_DETECTION_STYLES` so the two stay in sync by proximity. Preferred over reaching into the
+  non-public `supervision.annotators.base.BaseAnnotator`.
 
 ## Considered options
 
