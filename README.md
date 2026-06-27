@@ -76,7 +76,9 @@ nothing is written unless you pass `--sidecar` / `--record`. Each can be re-enab
 - **Slicing is a toggle.** Default `--slice-wh 640 640` is a no-op on frames ≤640px and
   tiles automatically on larger frames — same flags scale from test clip to 4K (ADR-0002).
   Slicing is a `SlicedDetector` decorator over any backend, so a future detector gets it
-  for free (ADR-0009).
+  for free (ADR-0009). The CLI warns up front on a degenerate `--slice-wh`: a tile ≥ the
+  frame (slicing does nothing) or far smaller than the frame (slow, and objects larger than
+  a tile fragment into overlapping boxes — raise `--slice-wh` or use `--no-slice`).
 - **Tracking via Ultralytics.** `--track` runs `model.track()` per frame (default
   `bytetrack`; also `botsort`, `ocsort`, `deepocsort`, `fasttracker`, `tracktrack` via
   `--tracker`); `supervision` stays the annotator (ADR-0012). Thresholds live in the tracker's

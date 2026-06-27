@@ -37,7 +37,7 @@ from .config import (
     TrackerKind,
     ZoomConfig,
 )
-from .detection import build_detector
+from .detection import build_detector, slice_warnings
 from .device import resolve_device
 from .pipeline import run
 from .sinks import CompositeSink, FrameSink, VideoFileSink, WindowSink
@@ -270,6 +270,13 @@ def main(argv: list[str] | None = None) -> int:
     if track.enabled and cfg.use_slicing:
         print("note: --slice is ignored under --track (model.track() runs the model "
               "directly; sliced tracking is unsupported — ADR-0012)", file=sys.stderr)
+    if slicing_on:
+        # Guardrail: a degenerate --slice-wh (>= frame = no-op, or far smaller = slow +
+        # fragmented boxes) can't be fixed by the slicer; warn before the loop commits to it.
+        for msg in slice_warnings(
+            cfg.slice_wh, cfg.overlap_ratio_wh, frame_source.info.resolution_wh
+        ):
+            print(f"warning: {msg}", file=sys.stderr)
     if is_live and not track.enabled:
         print("note: Live is noisy without --track (conf stays 0.15) — try --conf 0.3",
               file=sys.stderr)

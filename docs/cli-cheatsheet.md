@@ -62,7 +62,7 @@ uv run track --source 0 --track
 ### Slicing knobs (only matter with `--slice`)
 | Flag | Default | Notes |
 | --- | --- | --- |
-| `--slice-wh W H` | `640 640` | No-op on frames ≤ this size; tiles larger frames |
+| `--slice-wh W H` | `640 640` | No-op on frames ≤ this size; tiles larger frames. CLI warns if a tile is ≥ the frame (no-op) or < 128px (slow / fragmented boxes) |
 | `--overlap-ratio W H` | `0.2 0.2` | Slice overlap as a fraction |
 | `--overlap-filter` | `nms` | `nms \| nmm` merge strategy |
 | `--thread-workers` | `4` | Parallel slice inference workers |
