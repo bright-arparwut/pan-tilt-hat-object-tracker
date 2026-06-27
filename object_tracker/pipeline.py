@@ -13,12 +13,13 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import cast
 
 from tqdm import tqdm
 
 from .annotators import build_detection_annotator
 from .config import TrackConfig, ZoomConfig
-from .detection import Detector
+from .detection import Detector, TrackingDetector
 from .sidecar import detection_records, frame_record
 from .sinks import FrameSink
 from .sources import FrameSource
@@ -26,7 +27,6 @@ from .tracking import (
     _annotate_confirmed,
     _build_track_runtime,
     _present_centers,
-    _track_frame,
 )
 from .zoom import _confidence_zoom, draw_identity_panels
 
@@ -42,13 +42,11 @@ def run(
     info = source.info
     frame_wh = info.resolution_wh
 
-    detect = detector.detect
     detection_annotator = build_detection_annotator(frame_wh)
-    rt = (
-        _build_track_runtime(zoom, track, frame_wh, round(info.fps))
-        if track.enabled
-        else None
-    )
+    rt = _build_track_runtime(zoom, track, frame_wh) if track.enabled else None
+    # Under --track the build guarantees a TrackingDetector (ADR-0012); never wrapped by the
+    # slicing decorator, so model.track() is callable here.
+    tracking_detector = cast(TrackingDetector, detector) if track.enabled else None
 
     # A Live (unbounded) source has no frame total; its frame index isn't a wall-clock, so
     # its sidecar rows carry a capture ts (ADR-0010 §Throughput).
@@ -63,10 +61,9 @@ def run(
     try:
         for idx, frame in enumerate(tqdm(source, total=info.total_frames, unit="f")):
             ts = time.time() if is_live else None
-            detections = detect(frame)
-            if rt is not None:
-                confirmed, track_map = _track_frame(rt.byte_track, detections)
-                records = detection_records(detections, track_map)
+            if rt is not None and tracking_detector is not None:
+                confirmed = tracking_detector.track(frame)
+                records = detection_records(confirmed, with_track_id=True)
                 annotated = _annotate_confirmed(frame, confirmed, rt.ann)
                 if rt.slots is not None:
                     renders = rt.slots.update(_present_centers(confirmed), idx)
@@ -74,6 +71,7 @@ def run(
                         annotated, frame, renders, zoom.size, frame_wh, rt.slots.capacity
                     )
             else:
+                detections = detector.detect(frame)
                 records = detection_records(detections)
                 annotated = detection_annotator.annotate(scene=frame.copy(), detections=detections)
                 if zoom.enabled:

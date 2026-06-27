@@ -11,7 +11,7 @@ import numpy as np
 import supervision as sv
 
 import object_tracker.detection as detection
-from object_tracker.config import DetectConfig
+from object_tracker.config import DetectConfig, TrackConfig, TrackerKind
 from object_tracker.detection import SlicedDetector, build_detector
 
 
@@ -49,6 +49,10 @@ def _cfg(**over) -> DetectConfig:
     return DetectConfig(**base)  # type: ignore[arg-type]
 
 
+def _track(enabled: bool) -> TrackConfig:
+    return TrackConfig(enabled=enabled, tracker=TrackerKind.BYTETRACK, buffer=30)
+
+
 # --- SlicedDetector over a fake Detector (backend-agnostic) ------------------------
 def test_sliced_detector_single_slice_passes_base_detections_through():
     # slice_wh == frame size with zero overlap -> one slice at origin -> no offset.
@@ -75,11 +79,19 @@ def test_sliced_detector_calls_base_once_per_slice():
 # --- build_detector slicing toggle -------------------------------------------------
 def test_build_detector_no_slice_returns_bare_backend(monkeypatch):
     monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
-    d = build_detector(_cfg(use_slicing=False))
+    d = build_detector(_cfg(use_slicing=False), _track(enabled=False))
     assert isinstance(d, _FakeDetector)
 
 
 def test_build_detector_slice_wraps_in_sliced_detector(monkeypatch):
     monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
-    d = build_detector(_cfg(use_slicing=True))
+    d = build_detector(_cfg(use_slicing=True), _track(enabled=False))
     assert isinstance(d, SlicedDetector)
+
+
+def test_build_detector_track_skips_slicer_even_when_slice_on(monkeypatch):
+    # Tracking runs model.track() directly; sliced inference can't host it (ADR-0012),
+    # so --track returns the bare tracking-capable backend even with --slice on.
+    monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
+    d = build_detector(_cfg(use_slicing=True), _track(enabled=True))
+    assert isinstance(d, _FakeDetector)

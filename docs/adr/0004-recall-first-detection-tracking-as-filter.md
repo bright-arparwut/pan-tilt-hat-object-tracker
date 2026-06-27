@@ -10,3 +10,9 @@ Implication for future readers: a low `--conf` default and a noisy sidecar are *
 design*, not a bug. Do not raise the threshold to "clean up" the sidecar without
 accounting for the recall loss on small birds — the cleanup belongs in the tracking
 stage, not the detector.
+
+> **Amended by ADR-0012.** The two-population sidecar (all raw rows + nullable `track_id`)
+> now applies only to the `--no-track` path. Under `--track`, `model.track()` returns a single
+> tracked population and the sidecar records that. The recall-first philosophy survives —
+> `--conf 0.15` still feeds `model.track()`'s predict step and the tracker's own thresholds do
+> the filtering — but the separate raw layer is no longer written when tracking.

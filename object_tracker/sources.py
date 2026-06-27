@@ -1,8 +1,7 @@
 """The Frame Source seam (ADR-0010): where the loop's frames come from.
 
-``pipeline.run`` iterates a ``FrameSource`` and sizes its annotators / ByteTrack / progress
-bar from ``source.info`` — never branching on whether the frames came from a file or a
-camera. ``FileSource`` wraps the ``supervision`` file path; ``CameraSource`` wraps
+``pipeline.run`` iterates a ``FrameSource`` and sizes its annotators / progress bar from
+``source.info`` — never branching on whether the frames came from a file or a camera. ``FileSource`` wraps the ``supervision`` file path; ``CameraSource`` wraps
 ``cv2.VideoCapture`` (a camera index or stream URL). This mirrors the ``Detector`` seam
 (ADR-0009).
 """

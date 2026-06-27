@@ -14,6 +14,17 @@ import supervision as sv
 
 
 class Detector(Protocol):
-    """Given one frame, return that frame's Detections."""
+    """Given one frame, return that frame's identity-free Detections."""
 
     def detect(self, frame: np.ndarray) -> sv.Detections: ...
+
+
+class TrackingDetector(Protocol):
+    """Given one frame, return that frame's Detections carrying ``tracker_id`` (ADR-0012).
+
+    The tracking counterpart of ``Detector``: ``detect`` is identity-free, ``track`` assigns
+    identities (the backend runs Ultralytics ``model.track()`` internally). The pipeline
+    depends on this when ``--track`` is on; the YOLO backend implements both.
+    """
+
+    def track(self, frame: np.ndarray) -> sv.Detections: ...

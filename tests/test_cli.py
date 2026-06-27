@@ -19,8 +19,9 @@ from object_tracker.cli import (
 )
 from object_tracker.config import (
     COCO_BIRD_CLASS_ID,
-    DEFAULT_TRACK_ACTIVATION,
     DEFAULT_TRACK_BUFFER,
+    DEFAULT_TRACKER,
+    TrackerKind,
 )
 
 
@@ -74,18 +75,23 @@ def test_resolve_toggle(value, is_live, expected):
     assert resolve_toggle(value, is_live) is expected
 
 
-def test_track_buffer_and_activation_parse():
+def test_track_buffer_and_tracker_parse():
     args = build_parser().parse_args(
-        ["--source", "x.mp4", "--track-buffer", "50", "--track-activation", "0.4"]
+        ["--source", "x.mp4", "--track-buffer", "50", "--tracker", "ocsort"]
     )
     assert args.track_buffer == 50
-    assert args.track_activation == 0.4
+    assert args.tracker == "ocsort"
 
 
 def test_track_knob_defaults():
     args = build_parser().parse_args(["--source", "x.mp4"])
     assert args.track_buffer == DEFAULT_TRACK_BUFFER
-    assert args.track_activation == DEFAULT_TRACK_ACTIVATION
+    assert args.tracker == DEFAULT_TRACKER.name.lower()
+
+
+def test_tracker_rejects_unknown_algorithm():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--source", "x.mp4", "--tracker", "sortmagic"])
 
 
 def test_zoom_track_id_defaults_none_and_parses():
@@ -117,7 +123,6 @@ def test_validation_accepts_valid_track_args():
             zoom_max=1,
             track=True,
             track_buffer=30,
-            track_activation=0.25,
             zoom_track_id=None,
         )
         is None
@@ -128,12 +133,6 @@ def test_validation_accepts_valid_track_args():
 def test_validation_rejects_non_positive_track_buffer(buffer):
     err = validation_error(zoom_size=0.05, zoom_max=1, track_buffer=buffer)
     assert err is not None and "track-buffer" in err
-
-
-@pytest.mark.parametrize("activation", [0.0, -0.1, 1.5])
-def test_validation_rejects_out_of_range_track_activation(activation):
-    err = validation_error(zoom_size=0.05, zoom_max=1, track_activation=activation)
-    assert err is not None and "track-activation" in err
 
 
 def test_validation_rejects_zoom_track_id_without_track():
@@ -180,7 +179,7 @@ def captured_run(monkeypatch):
         )
 
     monkeypatch.setattr(cli, "run", fake_run)
-    monkeypatch.setattr(cli, "build_detector", lambda cfg: object())
+    monkeypatch.setattr(cli, "build_detector", lambda cfg, track: object())
     return captured
 
 
@@ -220,12 +219,20 @@ def test_main_live_explicit_track_overrides_off_default(monkeypatch, captured_ru
     assert captured_run["track"].enabled is True  # explicit flag wins in Live
 
 
+def test_main_tracker_choice_threaded_into_track_config(monkeypatch, captured_run):
+    _stub_live(monkeypatch)
+    cli.main(["--source", "0", "--track", "--tracker", "botsort"])
+    assert captured_run["track"].tracker is TrackerKind.BOTSORT
+
+
 def test_main_live_open_failure_returns_1(monkeypatch, capsys):
     def boom(spec):
         raise RuntimeError("could not open live source: 0")
 
     monkeypatch.setattr(cli, "CameraSource", boom)
-    monkeypatch.setattr(cli, "build_detector", lambda cfg: pytest.fail("built detector"))
+    monkeypatch.setattr(
+        cli, "build_detector", lambda cfg, track: pytest.fail("built detector")
+    )
 
     rc = cli.main(["--source", "0"])
 

@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 import supervision as sv
 
-from object_tracker.config import TrackConfig, ZoomConfig
+from object_tracker.config import COCO_BIRD_CLASS_ID, TrackConfig, TrackerKind, ZoomConfig
 from object_tracker.pipeline import run
 from object_tracker.sinks import VideoFileSink
 from object_tracker.sources import FileSource
@@ -27,6 +27,22 @@ class StubDetector:
 
     def detect(self, frame: np.ndarray) -> sv.Detections:
         return sv.Detections.empty()
+
+
+class StubTrackingDetector:
+    """A backend whose ``track()`` returns one detection with a fixed id; its ``detect`` must
+    never be reached on the ``--track`` path (it asserts if it is)."""
+
+    def detect(self, frame: np.ndarray) -> sv.Detections:
+        raise AssertionError("the --track path must call track(), not detect()")
+
+    def track(self, frame: np.ndarray) -> sv.Detections:
+        return sv.Detections(
+            xyxy=np.array([[0.0, 0.0, 10.0, 10.0]]),
+            confidence=np.array([0.9]),
+            class_id=np.array([COCO_BIRD_CLASS_ID]),
+            tracker_id=np.array([7]),
+        )
 
 
 class FakeSource:
@@ -71,7 +87,8 @@ def _info(n: int | None, w: int = 64, h: int = 48) -> sv.VideoInfo:
 
 
 _NO_ZOOM = ZoomConfig(enabled=False, size=0.05, max_panels=1)
-_NO_TRACK = TrackConfig(enabled=False, activation=0.25, buffer=30)
+_NO_TRACK = TrackConfig(enabled=False, tracker=TrackerKind.BYTETRACK, buffer=30)
+_TRACK = TrackConfig(enabled=True, tracker=TrackerKind.BYTETRACK, buffer=30)
 
 
 # --- the seam: run() over fakes ----------------------------------------------------
@@ -153,6 +170,18 @@ def test_run_writes_no_sidecar_when_path_is_none(tmp_path):
     source = FakeSource(_frames(2), _info(2))
     run(StubDetector(), source, RecordingSink(), _NO_ZOOM, _NO_TRACK, sidecar_path=None)
     assert list(tmp_path.iterdir()) == []  # nothing written
+
+
+def test_run_track_path_calls_track_and_records_id(tmp_path):
+    # --track: the loop drives detector.track() (not detect) and the sidecar carries the id.
+    side = tmp_path / "tracked.jsonl"
+    source = FakeSource(_frames(2), _info(2))
+
+    run(StubTrackingDetector(), source, RecordingSink(), _NO_ZOOM, _TRACK, sidecar_path=side)
+
+    rows = [json.loads(line) for line in side.read_text().splitlines()]
+    assert len(rows) == 2
+    assert [d["track_id"] for d in rows[0]["detections"]] == [7]
 
 
 def test_run_live_sidecar_includes_capture_ts(tmp_path):

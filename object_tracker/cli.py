@@ -27,13 +27,14 @@ from .config import (
     DEFAULT_OVERLAP_RATIO,
     DEFAULT_SLICE_WH,
     DEFAULT_THREAD_WORKERS,
-    DEFAULT_TRACK_ACTIVATION,
     DEFAULT_TRACK_BUFFER,
+    DEFAULT_TRACKER,
     DEFAULT_WEIGHTS,
     DEFAULT_ZOOM_SIZE,
     DetectConfig,
     RunPaths,
     TrackConfig,
+    TrackerKind,
     ZoomConfig,
 )
 from .detection import build_detector
@@ -126,7 +127,6 @@ def validation_error(
     *,
     track: bool = True,
     track_buffer: int = DEFAULT_TRACK_BUFFER,
-    track_activation: float = DEFAULT_TRACK_ACTIVATION,
     zoom_track_id: int | None = None,
 ) -> str | None:
     """Return a user-facing message for an invalid arg combination, else ``None``."""
@@ -136,8 +136,6 @@ def validation_error(
         return "--zoom-max must be >= 1"
     if track_buffer < 1:
         return "--track-buffer must be >= 1"
-    if not 0.0 < track_activation <= 1.0:
-        return "--track-activation must be in (0, 1]"
     if zoom_track_id is not None and not track:
         return "--zoom-track-id requires --track (it can't follow an id with --no-track)"
     return None
@@ -170,11 +168,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--zoom-max", type=int, default=1,
                    help="Follow up to N detections (top-N by confidence); default 1")
     p.add_argument("--track", action=argparse.BooleanOptionalAction, default=None,
-                   help="In-loop sv.ByteTrack tracking (default: on Offline, off Live)")
+                   help="Multi-object tracking via Ultralytics model.track() "
+                        "(default: on Offline, off Live)")
+    p.add_argument("--tracker", choices=[k.name.lower() for k in TrackerKind],
+                   default=DEFAULT_TRACKER.name.lower(),
+                   help="Tracking algorithm when --track (default: bytetrack); thresholds "
+                        "live in the tracker's shipped yaml")
     p.add_argument("--track-buffer", type=int, default=DEFAULT_TRACK_BUFFER,
-                   help="lost_track_buffer: frames a lost id (and its zoom slot) is held")
-    p.add_argument("--track-activation", type=float, default=DEFAULT_TRACK_ACTIVATION,
-                   help="track_activation_threshold: min conf to start a track")
+                   help="Frames a lost id's zoom slot is held (mirrors the tracker's "
+                        "track_buffer)")
     p.add_argument("--zoom-track-id", type=int, default=None,
                    help="Lock the zoom inset to one tracker_id (single-object; requires --track, "
                         "which is off by default in Live)")
@@ -209,7 +211,9 @@ def _build_configs(
         track_id=args.zoom_track_id,
     )
     track = TrackConfig(
-        enabled=track_on, activation=args.track_activation, buffer=args.track_buffer
+        enabled=track_on,
+        tracker=TrackerKind[args.tracker.upper()],
+        buffer=args.track_buffer,
     )
     return cfg, zoom, track
 
@@ -237,7 +241,6 @@ def main(argv: list[str] | None = None) -> int:
         args.zoom_max,
         track=track_on,
         track_buffer=args.track_buffer,
-        track_activation=args.track_activation,
         zoom_track_id=args.zoom_track_id,
     )
     if err:
@@ -255,17 +258,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    # Sliced inference can't host model.track() (ADR-0012), so --track wins over --slice.
+    slicing_on = cfg.use_slicing and not track.enabled
     print(f"mode={'live' if is_live else 'offline'} source={source_label} "
-          f"device={cfg.device} slicing={'on' if cfg.use_slicing else 'off'} "
+          f"device={cfg.device} slicing={'on' if slicing_on else 'off'} "
           f"conf={cfg.conf} classes={cfg.classes if cfg.classes is not None else 'all'} "
           f"track={'on' if track.enabled else 'off'} "
-          f"zoom={'on' if zoom.enabled else 'off'} zoom_max={zoom.max_panels}"
+          + (f"tracker={track.tracker.name.lower()} " if track.enabled else "")
+          + f"zoom={'on' if zoom.enabled else 'off'} zoom_max={zoom.max_panels}"
           + (f" zoom_track_id={zoom.track_id}" if zoom.track_id is not None else ""))
+    if track.enabled and cfg.use_slicing:
+        print("note: --slice is ignored under --track (model.track() runs the model "
+              "directly; sliced tracking is unsupported — ADR-0012)", file=sys.stderr)
     if is_live and not track.enabled:
         print("note: Live is noisy without --track (conf stays 0.15) — try --conf 0.3",
               file=sys.stderr)
 
-    detector = build_detector(cfg)
+    detector = build_detector(cfg, track)
     try:
         run(detector, frame_source, sink, zoom, track, sidecar_path=sidecar_path)
     except KeyboardInterrupt:

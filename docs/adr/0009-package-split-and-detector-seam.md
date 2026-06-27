@@ -31,6 +31,10 @@ object_tracker/
   depends only on this; it never imports YOLO. A `Detector Backend` (e.g. `YoloDetector`)
   owns its own confidence, class filter, and device — how it honours those is its business
   (YOLO uses native args; a future DETR backend might post-filter).
+  - **ADR-0012 note:** `detect()` stays identity-free as defined here. The YOLO backend gains a
+    *sibling* `track(frame) -> sv.Detections` (carrying `tracker_id` via Ultralytics
+    `model.track()`); the pipeline calls it on `--track`. This adds a capability beside the
+    seam without changing `detect()`'s contract.
 - **Slicing is a decorator, not a backend concern.** `SlicedDetector(base: Detector, ...)`
   wraps *any* Detector and runs it over the frame's Slices via `sv.InferenceSlicer`
   (callback = `base.detect`). This **revises ADR-0003's** assumption that slicing lives on

@@ -55,8 +55,8 @@ uv run track --source 0 --track
 ### Toggles (tri-state: unset → Offline on / Live off; explicit wins)
 | Flag | Offline | Live | Turn on / off |
 | --- | --- | --- | --- |
-| `--slice` / `--no-slice` | on | off | sliced (SAHI) inference for small objects in big frames |
-| `--track` / `--no-track` | on | off | in-loop ByteTrack ids + false-positive filter |
+| `--slice` / `--no-slice` | on | off | sliced (SAHI) inference for small objects in big frames (ignored under `--track`) |
+| `--track` / `--no-track` | on | off | Ultralytics `model.track()` ids + false-positive filter |
 | `--zoom` / `--no-zoom` | on | off | picture-in-picture zoom inset |
 
 ### Slicing knobs (only matter with `--slice`)
@@ -73,8 +73,8 @@ uv run track --source 0 --track
 | `--zoom-size` | `0.05` | Crop side as a fraction of frame width (smaller = more magnification) |
 | `--zoom-max` | `1` | Follow top-N detections by confidence |
 | `--zoom-track-id` | — | Pin the inset to one tracker id; **requires `--track`** (so in Live pass `--track` too) |
-| `--track-buffer` | `30` | Frames a lost id (and its zoom slot) is held |
-| `--track-activation` | `0.25` | Min confidence to start a track |
+| `--tracker` | `bytetrack` | Algorithm under `--track`: `bytetrack \| botsort \| ocsort \| deepocsort \| fasttracker \| tracktrack`; thresholds live in the tracker's yaml |
+| `--track-buffer` | `30` | Frames a lost id's zoom slot is held (mirrors the tracker's `track_buffer`) |
 
 ### Outputs
 | Flag | Default | Notes |
