@@ -79,6 +79,11 @@ step, and the tracker's own `track_high_thresh`/`new_track_thresh` do the filter
 
 ## Consequences
 
+- **New dependency: `lap`.** Ultralytics's trackers (BoT-SORT/ByteTrack and the rest) do
+  their linear assignment via `lap`, which `sv.ByteTrack` bundled but Ultralytics does not.
+  It is declared in `pyproject.toml` (`lap>=0.5.12`); without it `model.track()` raises
+  `ModuleNotFoundError: No module named 'lap'` on the first frame (Ultralytics's runtime
+  auto-install can't be relied on — a `pip`-less venv fails it silently).
 - The **default output is unchanged at defaults** (`bytetrack`, conf 0.15, buffer 30).
 - Ultralytics derives its tracker's lost-track window from a `frame_rate` it infers
   (defaulting to 30 for bare-frame input), where the old code passed the source fps to
