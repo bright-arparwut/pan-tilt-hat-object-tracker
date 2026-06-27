@@ -64,7 +64,7 @@ DEFAULT_ZOOM_SIZE = 0.05  # crop side as a fraction of frame width
 # zoom raster takes BGR tuples. They can't unify (different libraries), so they're grouped.
 #
 # supervision annotators (sv.* types) — fed to the annotators.py factory:
-DETECTION_STYLE = DetectionStyle.COLOR  # per-Detection style; BOX = prior look (annotators._DETECTION_STYLES)
+DETECTION_STYLE = DetectionStyle.BOX  # per-Detection style; BOX = prior look (annotators._DETECTION_STYLES)
 ANNOTATION_PALETTE = sv.ColorPalette.DEFAULT  # box/label/trace colours (both modes)
 TRACE_LENGTH = 30  # sv.TraceAnnotator trace_length: trail length in frames
 LABEL_TEXT_COLOR: sv.Color | None = None  # None -> keep sv default; an sv.Color forces it
