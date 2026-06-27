@@ -11,8 +11,8 @@ import numpy as np
 import supervision as sv
 
 import object_tracker.detection as detection
-from object_tracker.config import DetectConfig, TrackConfig, TrackerKind
-from object_tracker.detection import SlicedDetector, build_detector
+from object_tracker.config import MIN_SLICE_PX, DetectConfig, TrackConfig, TrackerKind
+from object_tracker.detection import SlicedDetector, build_detector, slice_warnings
 
 
 class _FakeDetector:
@@ -95,3 +95,29 @@ def test_build_detector_track_skips_slicer_even_when_slice_on(monkeypatch):
     monkeypatch.setattr(detection, "YoloDetector", _FakeDetector)
     d = build_detector(_cfg(use_slicing=True), _track(enabled=True))
     assert isinstance(d, _FakeDetector)
+
+
+# --- slice_warnings guardrails (pure; no model/video) ------------------------------
+def test_slice_warnings_flags_tile_at_least_frame_size_as_noop():
+    # Default 640x640 tile on a <=640px frame -> one tile -> slicing does nothing (ADR-0002).
+    msgs = slice_warnings((640, 640), (0.2, 0.2), (640, 360))
+    assert len(msgs) == 1
+    assert "no effect" in msgs[0] and "--no-slice" in msgs[0]
+
+
+def test_slice_warnings_flags_tiny_tile_with_estimated_tile_count():
+    # 100px tile, 20% overlap -> 80px stride -> ceil(640/80)*ceil(360/80) = 8*5 = 40 tiles.
+    msgs = slice_warnings((100, 100), (0.2, 0.2), (640, 360))
+    assert len(msgs) == 1
+    assert "~40 tiles" in msgs[0] and "fragment" in msgs[0]
+    assert f">= {MIN_SLICE_PX}px" in msgs[0]
+
+
+def test_slice_warnings_silent_for_sane_subdividing_tile():
+    # 320px tile actually subdivides a 640x360 frame and stays well above the px floor.
+    assert slice_warnings((320, 320), (0.2, 0.2), (640, 360)) == []
+
+
+def test_slice_warnings_silent_for_640_tile_on_4k_frame():
+    # The documented 4K use: 640 tiles subdivide a 3840x2160 frame — not a warning.
+    assert slice_warnings((640, 640), (0.2, 0.2), (3840, 2160)) == []

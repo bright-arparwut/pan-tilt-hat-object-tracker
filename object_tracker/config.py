@@ -47,6 +47,11 @@ DEFAULT_CONF = 0.15  # recall-first; tracking is the false-positive filter (ADR-
 DEFAULT_SLICE_WH = (640, 640)
 DEFAULT_OVERLAP_RATIO = (0.2, 0.2)
 DEFAULT_THREAD_WORKERS = 4
+# Guardrail (not a hard limit): below this absolute tile side (px), slices are upscaled so
+# hard that small objects vanish and objects larger than a tile fragment into overlapping
+# boxes. Slicing targets large/4K frames (ADR-0002), so legitimate tiles are >= this; the CLI
+# warns when --slice-wh falls under it. See detection.slice_warnings.
+MIN_SLICE_PX = 128
 # Zoom-slot hold: frames a lost id's Zoom Slot is held black. Mirrors the tracker yaml's
 # track_buffer (bytetrack ships 30) so the slot persists exactly as long as the id can
 # revive (ADR-0007/0012). No longer reaches the tracker — model.track() owns its thresholds.

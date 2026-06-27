@@ -277,6 +277,31 @@ def test_main_missing_file_source_returns_1(capsys):
     assert "not found" in capsys.readouterr().err
 
 
+def test_main_offline_warns_on_tiny_slice_size(monkeypatch, captured_run, capsys, tmp_path):
+    # --no-track turns slicing on (Offline) so the guardrail runs; a 100px tile on a 640x360
+    # frame is degenerate and must warn before the (slow) loop commits to it.
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"pretend video")
+
+    class _Info:
+        resolution_wh = (640, 360)
+
+    class FakeFileSource:
+        def __init__(self, path):
+            self.info = _Info()
+
+    monkeypatch.setattr(cli, "FileSource", FakeFileSource)
+    monkeypatch.setattr(cli, "VideoFileSink", lambda out, info: object())
+
+    rc = cli.main(
+        ["--source", str(clip), "--no-track", "--slice", "--slice-wh", "100", "100"]
+    )
+
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "warning:" in err and "tiles/frame" in err
+
+
 # --- main(): opt-in Live outputs (--sidecar / --record) ----------------------------
 class _SrcWithInfo:
     info = "INFO"
