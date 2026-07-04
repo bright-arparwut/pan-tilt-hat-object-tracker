@@ -351,6 +351,54 @@ def test_main_offline_record_is_rejected(capsys, tmp_path):
     assert "Live-only" in capsys.readouterr().err
 
 
+# --- main(): opt-in Live outputs (--turret) ----------------------------------------
+def test_main_live_turret_builds_composite_window_plus_actuator(monkeypatch, captured_run):
+    from object_tracker.sinks import CompositeSink
+    from object_tracker.turret_sink import ActuatorSink
+
+    class _Info:
+        resolution_wh = (640, 360)
+
+    class FakeCameraSource:
+        def __init__(self, spec):
+            self.info = _Info()
+
+    window = object()
+
+    class FakeUdpTransport:
+        def __init__(self, host, port):
+            self.host = host
+            self.port = port
+
+        def send(self, command):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "CameraSource", FakeCameraSource)
+    monkeypatch.setattr(cli, "WindowSink", lambda *a, **k: window)
+    monkeypatch.setattr(cli, "UdpAimTransport", FakeUdpTransport)
+
+    rc = cli.main(["--source", "0", "--track", "--turret", "pi.local:9000"])
+
+    assert rc == 0
+    sink = captured_run["sink"]
+    assert isinstance(sink, CompositeSink)
+    assert sink._sinks[0] is window  # window first (governs stop)
+    assert isinstance(sink._sinks[1], ActuatorSink)
+
+
+def test_main_offline_turret_is_rejected(capsys, tmp_path):
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"pretend video")
+
+    rc = cli.main(["--source", str(clip), "--turret", "pi.local:9000"])
+
+    assert rc == 1
+    assert "Live-only" in capsys.readouterr().err
+
+
 # --- CLI: turret flags --------------------------------------------------------------
 def test_turret_defaults_to_none():
     args = build_parser().parse_args(["--source", "x.mp4"])
