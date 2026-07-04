@@ -12,6 +12,8 @@ import pytest
 
 from object_tracker import cli
 from object_tracker.cli import (
+    _maybe_add_turret,
+    _parse_turret_target,
     _resolve_classes,
     build_parser,
     resolve_toggle,
@@ -21,6 +23,12 @@ from object_tracker.config import (
     COCO_BIRD_CLASS_ID,
     DEFAULT_TRACK_BUFFER,
     DEFAULT_TRACKER,
+    DEFAULT_TURRET_DEADZONE_PX,
+    DEFAULT_TURRET_KD,
+    DEFAULT_TURRET_KI,
+    DEFAULT_TURRET_KP,
+    DEFAULT_TURRET_MAX_DELTA_DEG,
+    DEFAULT_TURRET_PORT,
     TrackerKind,
 )
 
@@ -341,3 +349,91 @@ def test_main_offline_record_is_rejected(capsys, tmp_path):
 
     assert rc == 1
     assert "Live-only" in capsys.readouterr().err
+
+
+# --- CLI: turret flags --------------------------------------------------------------
+def test_turret_defaults_to_none():
+    args = build_parser().parse_args(["--source", "x.mp4"])
+    assert args.turret is None
+
+
+def test_turret_parses_host_port():
+    args = build_parser().parse_args(["--source", "0", "--turret", "pi.local:9000"])
+    assert args.turret == "pi.local:9000"
+
+
+def test_turret_gain_flags_default_from_config():
+    args = build_parser().parse_args(["--source", "x.mp4"])
+    assert args.turret_kp == DEFAULT_TURRET_KP
+    assert args.turret_ki == DEFAULT_TURRET_KI
+    assert args.turret_kd == DEFAULT_TURRET_KD
+    assert args.turret_deadzone_px == DEFAULT_TURRET_DEADZONE_PX
+    assert args.turret_max_deg == DEFAULT_TURRET_MAX_DELTA_DEG
+
+
+def test_validation_error_turret_requires_track():
+    assert validation_error(0.05, 1, track=False, turret=True) == "--turret requires --track"
+
+
+def test_validation_error_turret_with_track_is_fine():
+    assert validation_error(0.05, 1, track=True, turret=True) is None
+
+
+def test_parse_turret_target_splits_host_and_port():
+    assert _parse_turret_target("pi.local:9000") == ("pi.local", 9000)
+
+
+def test_parse_turret_target_defaults_port_when_omitted():
+    assert _parse_turret_target("pi.local") == ("pi.local", DEFAULT_TURRET_PORT)
+
+
+def test_parse_turret_target_rejects_empty_host():
+    with pytest.raises(ValueError):
+        _parse_turret_target(":9000")
+
+
+def test_parse_turret_target_rejects_non_numeric_port():
+    with pytest.raises(ValueError):
+        _parse_turret_target("pi.local:abc")
+
+
+class _FakeTurretArgs:
+    turret = "pi.local:9000"
+    turret_kp = 0.1
+    turret_ki = 0.0
+    turret_kd = 0.0
+    turret_deadzone_px = 5.0
+    turret_max_deg = 5.0
+
+
+def test_maybe_add_turret_wraps_sink_in_composite(monkeypatch):
+    from object_tracker.sinks import CompositeSink
+
+    created = {}
+
+    class FakeUdpTransport:
+        def __init__(self, host, port):
+            created["host"] = host
+            created["port"] = port
+
+        def send(self, command):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "UdpAimTransport", FakeUdpTransport)
+
+    base_sink = object()  # stand-in FrameSink; never called in this test
+    result = cli._maybe_add_turret(base_sink, _FakeTurretArgs(), (640, 480))
+
+    assert isinstance(result, CompositeSink)
+    assert created == {"host": "pi.local", "port": 9000}
+
+
+def test_maybe_add_turret_passthrough_when_no_turret():
+    class _NoTurretArgs(_FakeTurretArgs):
+        turret = None
+
+    base_sink = object()
+    assert cli._maybe_add_turret(base_sink, _NoTurretArgs(), (640, 480)) is base_sink

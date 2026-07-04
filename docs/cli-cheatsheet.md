@@ -76,12 +76,22 @@ uv run track --source 0 --track
 | `--tracker` | `bytetrack` | Algorithm under `--track`: `bytetrack \| botsort \| ocsort \| deepocsort \| fasttracker \| tracktrack`; thresholds live in the tracker's yaml |
 | `--track-buffer` | `30` | Frames a lost id's zoom slot is held (mirrors the tracker's `track_buffer`) |
 
+### Turret knobs (only matter with `--turret`)
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--turret-kp` | `0.05` | Aim Controller proportional gain (deg per px error) |
+| `--turret-ki` | `0.0` | Integral gain — `0.0` is P-only (Phase 3); nonzero is PID (Phase 4) |
+| `--turret-kd` | `0.0` | Derivative gain — ditto |
+| `--turret-deadzone-px` | `6.0` | Pixel error below this is treated as zero (kills jitter at rest) |
+| `--turret-max-deg` | `5.0` | Per-step slew clamp on a single Aim Command |
+
 ### Outputs
 | Flag | Default | Notes |
 | --- | --- | --- |
 | `--output` | `<source>.annotated.mp4` | Offline annotated video path |
 | `--sidecar` | Offline: derived; Live: off | JSONL detections. **Live rows carry a capture `ts`** (the frame index isn't a clock); Offline schema unchanged |
 | `--record` | — | **Live only** — also write an annotated `.mp4` alongside the window (rejected in Offline, which already writes `--output`) |
+| `--turret` | — | **Live only, requires `--track`** — also aim a pan-tilt turret via UDP Aim Commands to `HOST[:PORT]` (port defaults to `9000`; ADR-0013) |
 
 ## Common recipes
 

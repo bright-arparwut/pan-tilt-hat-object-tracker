@@ -23,18 +23,26 @@ import sys
 from pathlib import Path
 
 from .config import (
+    AimGains,
     DEFAULT_CONF,
     DEFAULT_OVERLAP_RATIO,
     DEFAULT_SLICE_WH,
     DEFAULT_THREAD_WORKERS,
     DEFAULT_TRACK_BUFFER,
     DEFAULT_TRACKER,
+    DEFAULT_TURRET_DEADZONE_PX,
+    DEFAULT_TURRET_KD,
+    DEFAULT_TURRET_KI,
+    DEFAULT_TURRET_KP,
+    DEFAULT_TURRET_MAX_DELTA_DEG,
+    DEFAULT_TURRET_PORT,
     DEFAULT_WEIGHTS,
     DEFAULT_ZOOM_SIZE,
     DetectConfig,
     RunPaths,
     TrackConfig,
     TrackerKind,
+    TurretConfig,
     ZoomConfig,
 )
 from .detection import build_detector, slice_warnings
@@ -49,6 +57,7 @@ from .sources import (
     FrameSource,
     classify_source,
 )
+from .turret_sink import ActuatorSink, UdpAimTransport
 
 
 def _derive_paths(source: Path, output: str | None, sidecar: str | None) -> RunPaths:
@@ -67,6 +76,37 @@ def _resolve_classes(args) -> tuple[int, ...] | None:
     if args.classes is not None:
         return tuple(args.classes)
     return None  # no --classes -> keep all classes
+
+
+def _parse_turret_target(text: str) -> tuple[str, int]:
+    """Parse ``--turret HOST[:PORT]`` (pure); PORT defaults to ``DEFAULT_TURRET_PORT`` when
+    omitted. Raises ``ValueError`` on a malformed target (empty host, non-numeric port)."""
+    host, sep, port_text = text.rpartition(":")
+    if not sep:
+        return text, DEFAULT_TURRET_PORT
+    if not host or not port_text.isdigit():
+        raise ValueError(f"--turret target must be HOST[:PORT], got {text!r}")
+    return host, int(port_text)
+
+
+def _maybe_add_turret(sink: FrameSink, args, frame_wh: tuple[int, int]) -> FrameSink:
+    """Fold an Actuator Sink into ``sink`` when ``--turret`` is given, else return it as-is."""
+    if args.turret is None:
+        return sink
+    host, port = _parse_turret_target(args.turret)
+    turret = TurretConfig(
+        host=host,
+        port=port,
+        gains=AimGains(
+            kp=args.turret_kp,
+            ki=args.turret_ki,
+            kd=args.turret_kd,
+            deadzone_px=args.turret_deadzone_px,
+            max_delta_deg=args.turret_max_deg,
+        ),
+    )
+    actuator = ActuatorSink(UdpAimTransport(turret.host, turret.port), turret.gains, frame_wh)
+    return CompositeSink([sink, actuator])
 
 
 def resolve_toggle(value: bool | None, is_live: bool) -> bool:
@@ -128,6 +168,7 @@ def validation_error(
     track: bool = True,
     track_buffer: int = DEFAULT_TRACK_BUFFER,
     zoom_track_id: int | None = None,
+    turret: bool = False,
 ) -> str | None:
     """Return a user-facing message for an invalid arg combination, else ``None``."""
     if not 0.0 < zoom_size <= 1.0:
@@ -138,6 +179,8 @@ def validation_error(
         return "--track-buffer must be >= 1"
     if zoom_track_id is not None and not track:
         return "--zoom-track-id requires --track (it can't follow an id with --no-track)"
+    if turret and not track:
+        return "--turret requires --track"
     return None
 
 
@@ -186,6 +229,19 @@ def build_parser() -> argparse.ArgumentParser:
                         "rows carry a capture ts)")
     p.add_argument("--record", default=None,
                    help="Live only: also write an annotated .mp4 alongside the preview window")
+    p.add_argument("--turret", default=None, metavar="HOST[:PORT]",
+                   help="Live only, requires --track: also aim a pan-tilt turret via UDP "
+                        f"Aim Commands (default port {DEFAULT_TURRET_PORT}; ADR-0013)")
+    p.add_argument("--turret-kp", type=float, default=DEFAULT_TURRET_KP,
+                   help="Aim Controller proportional gain (deg per px error)")
+    p.add_argument("--turret-ki", type=float, default=DEFAULT_TURRET_KI,
+                   help="Aim Controller integral gain (0.0 = P-only, Phase 3)")
+    p.add_argument("--turret-kd", type=float, default=DEFAULT_TURRET_KD,
+                   help="Aim Controller derivative gain (0.0 = P-only, Phase 3)")
+    p.add_argument("--turret-deadzone-px", type=float, default=DEFAULT_TURRET_DEADZONE_PX,
+                   help="Pixel error below this is treated as zero (jitter floor)")
+    p.add_argument("--turret-max-deg", type=float, default=DEFAULT_TURRET_MAX_DELTA_DEG,
+                   help="Per-step slew clamp on a single Aim Command (deg)")
     return p
 
 
@@ -229,6 +285,11 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
 
+    if args.turret is not None and not is_live:
+        print("error: --turret is Live-only (the turret aims a live camera feed)",
+              file=sys.stderr)
+        return 1
+
     # Resolve the mode-sensitive toggles before validating: an explicit flag wins, otherwise
     # Offline is on / Live is off (ADR-0010). Validation runs against the resolved values
     # (e.g. --zoom-track-id requires the *resolved* track).
@@ -242,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         track=track_on,
         track_buffer=args.track_buffer,
         zoom_track_id=args.zoom_track_id,
+        turret=args.turret is not None,
     )
     if err:
         print(f"error: {err}", file=sys.stderr)
@@ -257,6 +319,11 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    # Only touch frame_source.info when --turret is given: it's the sole caller that needs
+    # resolution_wh at this point, and several call sites (tests included) build a source
+    # stand-in without a real .info until it's actually needed.
+    if args.turret is not None:
+        sink = _maybe_add_turret(sink, args, frame_source.info.resolution_wh)
 
     # Sliced inference can't host model.track() (ADR-0012), so --track wins over --slice.
     slicing_on = cfg.use_slicing and not track.enabled
@@ -266,7 +333,8 @@ def main(argv: list[str] | None = None) -> int:
           f"track={'on' if track.enabled else 'off'} "
           + (f"tracker={track.tracker.name.lower()} " if track.enabled else "")
           + f"zoom={'on' if zoom.enabled else 'off'} zoom_max={zoom.max_panels}"
-          + (f" zoom_track_id={zoom.track_id}" if zoom.track_id is not None else ""))
+          + (f" zoom_track_id={zoom.track_id}" if zoom.track_id is not None else "")
+          + (f" turret={args.turret}" if args.turret is not None else ""))
     if track.enabled and cfg.use_slicing:
         print("note: --slice is ignored under --track (model.track() runs the model "
               "directly; sliced tracking is unsupported — ADR-0012)", file=sys.stderr)
