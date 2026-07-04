@@ -63,6 +63,14 @@ DEFAULT_CAMERA_FPS = 30
 DEFAULT_TRACKER = TrackerKind.BYTETRACK  # default Tracker (ADR-0012); preserves ADR-0006
 DEFAULT_ZOOM_SIZE = 0.05  # crop side as a fraction of frame width
 
+# --- turret (ADR-0013) — Aim Controller defaults; deliberately gentle, tune on hardware ---
+DEFAULT_TURRET_KP = 0.05  # deg per px error
+DEFAULT_TURRET_KI = 0.0  # Phase 3 is P-only; Phase 4 turns this on
+DEFAULT_TURRET_KD = 0.0  # ditto
+DEFAULT_TURRET_DEADZONE_PX = 6.0  # |error| below this is treated as zero (kills at-rest jitter)
+DEFAULT_TURRET_MAX_DELTA_DEG = 5.0  # per-step slew clamp on a single Aim Command
+DEFAULT_TURRET_PORT = 9000
+
 # --- appearance (non-CLI styling; defaults reproduce prior output — ADR-0011) -------
 # The look of the Annotated Video, edited here rather than via --flags. Two colour
 # conventions coexist: supervision annotators take sv.Color / sv.ColorPalette; the cv2
@@ -130,3 +138,24 @@ class ZoomConfig:
     size: float  # crop side as a fraction of frame width
     max_panels: int  # confidence-mode: follow top-N; identity-mode: id-pinned slot count
     track_id: int | None = None  # identity-mode: lock the inset to one tracker_id
+
+
+@dataclass(frozen=True)
+class AimGains:
+    """Aim Controller gains (ADR-0013): P-only when ``ki == kd == 0.0`` (Phase 3); the same
+    ``aim_controller.step`` becomes PID (Phase 4) purely by which gains are nonzero."""
+
+    kp: float
+    ki: float = DEFAULT_TURRET_KI
+    kd: float = DEFAULT_TURRET_KD
+    deadzone_px: float = DEFAULT_TURRET_DEADZONE_PX
+    max_delta_deg: float = DEFAULT_TURRET_MAX_DELTA_DEG
+
+
+@dataclass(frozen=True)
+class TurretConfig:
+    """Turret Actuator Sink settings for a run (ADR-0013): where Aim Commands are sent."""
+
+    host: str
+    port: int
+    gains: AimGains
