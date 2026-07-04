@@ -55,7 +55,7 @@ MIN_SLICE_PX = 128
 # Zoom-slot hold: frames a lost id's Zoom Slot is held black. Mirrors the tracker yaml's
 # track_buffer (bytetrack ships 30) so the slot persists exactly as long as the id can
 # revive (ADR-0007/0012). No longer reaches the tracker — model.track() owns its thresholds.
-DEFAULT_TRACK_BUFFER = 30
+DEFAULT_TRACK_BUFFER = 60
 # Live cameras/streams sometimes report fps=0 (CAP_PROP_FPS). We need a positive nominal
 # value because it feeds annotator scaling (frame-count based), so fall back to this when
 # the device doesn't report one (ADR-0010 §Consequences).
