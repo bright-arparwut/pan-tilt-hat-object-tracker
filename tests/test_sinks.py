@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import supervision as sv
 
 from object_tracker import sinks
 from object_tracker.sinks import CompositeSink, WindowSink
@@ -49,18 +50,25 @@ def test_window_sink_close_destroys_named_window(monkeypatch):
     assert destroyed == ["my-window"]
 
 
+def test_window_sink_show_accepts_a_tracks_argument(monkeypatch):
+    _patch_window(monkeypatch, key=-1, visible=1.0)
+    assert WindowSink().show(_frame(), sv.Detections.empty()) is True
+
+
 # --- CompositeSink -----------------------------------------------------------------
 
 
 class FakeSink:
     def __init__(self, *, show_result=True, raise_on_close=False):
         self.shown: list[np.ndarray] = []
+        self.tracks_received: list = []
         self.closed = 0
         self._show_result = show_result
         self._raise_on_close = raise_on_close
 
-    def show(self, frame: np.ndarray) -> bool:
+    def show(self, frame: np.ndarray, tracks=None) -> bool:
         self.shown.append(frame)
+        self.tracks_received.append(tracks)
         return self._show_result
 
     def close(self) -> None:
@@ -92,3 +100,14 @@ def test_composite_close_closes_all_children_even_if_one_raises():
         composite.close()
 
     assert raising.closed == 1 and ok.closed == 1  # both closed despite the failure
+
+
+def test_composite_forwards_tracks_to_every_child():
+    a, b = FakeSink(), FakeSink()
+    composite = CompositeSink([a, b])
+    tracks = sv.Detections.empty()
+
+    composite.show(_frame(), tracks)
+
+    assert a.tracks_received == [tracks]
+    assert b.tracks_received == [tracks]

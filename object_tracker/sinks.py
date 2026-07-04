@@ -22,10 +22,13 @@ class FrameSink(Protocol):
     """A destination for annotated frames.
 
     ``show`` returns ``False`` to ask the loop to stop (e.g. the viewer pressed ``q``);
-    ``True`` to continue. ``close`` frees any underlying writer/window.
+    ``True`` to continue. ``tracks`` carries the frame's confirmed Tracks under ``--track``
+    (``None`` otherwise) — sinks that don't need it (``VideoFileSink``, ``WindowSink``)
+    ignore it; the Actuator Sink is why it exists. ``close`` frees any underlying
+    writer/window.
     """
 
-    def show(self, frame: np.ndarray) -> bool: ...
+    def show(self, frame: np.ndarray, tracks: sv.Detections | None = None) -> bool: ...
 
     def close(self) -> None: ...
 
@@ -42,7 +45,7 @@ class VideoFileSink:
         self._sink = sv.VideoSink(str(path), info)
         self._sink.__enter__()  # open the cv2.VideoWriter eagerly
 
-    def show(self, frame: np.ndarray) -> bool:
+    def show(self, frame: np.ndarray, tracks: sv.Detections | None = None) -> bool:
         self._sink.write_frame(frame)
         return True
 
@@ -60,7 +63,7 @@ class WindowSink:
     def __init__(self, window_name: str = DEFAULT_WINDOW_NAME) -> None:
         self._window_name = window_name
 
-    def show(self, frame: np.ndarray) -> bool:
+    def show(self, frame: np.ndarray, tracks: sv.Detections | None = None) -> bool:
         cv2.imshow(self._window_name, frame)
         if (cv2.waitKey(1) & 0xFF) == ord("q"):
             return False
@@ -74,21 +77,23 @@ class WindowSink:
 
 
 class CompositeSink:
-    """A ``FrameSink`` that fans one frame out to several sinks (``--record`` = window+file).
+    """A ``FrameSink`` that fans one frame out to several sinks (``--record`` = window+file,
+    or ``--record`` + ``--turret`` = window+file+actuator).
 
     ``show`` calls **every** child (no short-circuit, so a file sink still records the frame
-    even when the window asks to stop) and returns the logical AND of their results. ``close``
-    closes every child even if one raises, then re-raises the first failure (never silently
-    swallowed) — the loop's ``finally`` still releases the source regardless.
+    even when the window asks to stop) and returns the logical AND of their results, forwarding
+    ``tracks`` to each unchanged. ``close`` closes every child even if one raises, then
+    re-raises the first failure (never silently swallowed) — the loop's ``finally`` still
+    releases the source regardless.
     """
 
     def __init__(self, sinks: list[FrameSink]) -> None:
         self._sinks = list(sinks)
 
-    def show(self, frame: np.ndarray) -> bool:
+    def show(self, frame: np.ndarray, tracks: sv.Detections | None = None) -> bool:
         keep_going = True
         for sink in self._sinks:
-            if not sink.show(frame):
+            if not sink.show(frame, tracks):
                 keep_going = False
         return keep_going
 
