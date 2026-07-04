@@ -25,6 +25,7 @@ feedback loop), which is algorithmic and squarely in CS territory.
 | Learning style | **Phased: build a milestone, learn its theory** | Learn-by-doing with intent; theory becomes load-bearing exactly when needed. |
 | Hardware in hand | Pi 5 + Waveshare Pan-Tilt HAT + USB camera | Fixed constraints the design is tailored to. |
 | v1 transport | MJPEG video up + simple UDP/TCP command socket | Dead-simple, well-documented; optimize latency only if it hurts (Phase 5). |
+| Target selection | **Lock-first-id** | Follow the first stable ByteTrack `#id` seen; ignore the rest until it is lost. Simplest deterministic policy; no per-frame "best target" flip-flopping (see ADR-0013). |
 
 ## System architecture
 
@@ -76,7 +77,8 @@ Each unit is independently understandable and testable:
   `(pixel_error, gains, prev_state) → (command, new_state)`. Proportional in Phase 3, PID in
   Phase 4. No I/O, no mutation → fully unit-testable on the Mac with zero hardware.
 - **`target selector` (Mac)** — Given the frame's tracked boxes (multiple `#id`s), chooses which
-  one to follow (policy: locked-id / largest / nearest-center). Pure, testable.
+  one to follow. **Policy: lock-first-id** — latch onto the first stable `#id` seen and keep
+  following that id until it is lost (then re-latch on the next). Pure, testable.
 - **`actuator sink` (Mac)** — Glue: pulls the selected target from the pipeline, runs the
   controller, ships the command down. Mirrors the existing `sinks.py` shape.
 
@@ -112,8 +114,9 @@ makes it stick.
 ## Risks
 
 - **Latency-induced oscillation** — mitigated by the deadzone + the P→PID progression (Phases 3–4).
-- **"Which target?"** — ByteTrack yields multiple `#id`s; a selection policy is required. Decided
-  in Phase 3, isolated in the `target selector` unit.
+- **"Which target?"** — ByteTrack yields multiple `#id`s; resolved as **lock-first-id** (latch the
+  first stable id, re-latch on loss), isolated in the `target selector` unit. Fancier policies
+  (largest / nearest-center / operator pick) are deferred (ADR-0013).
 - **Sign errors** — pan/tilt moving the *wrong* direction is the classic first bug; the Phase 1
   teleop script nails the sign before the loop is closed.
 

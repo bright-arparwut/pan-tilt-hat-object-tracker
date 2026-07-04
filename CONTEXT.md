@@ -166,3 +166,37 @@ The run shape over a [Live Source]: process frames as they arrive and show a [Li
 running until the viewer quits. Chosen by source type, not a flag. Writes nothing to disk
 unless asked.
 _Avoid_: realtime mode
+
+### Actuation & turret (visual servoing, ADR-0013)
+
+**Actuator Sink**:
+The [Frame Sink] that, instead of drawing a frame, consumes its [Track]s and drives a physical
+[Turret] to keep the followed [Track] centred. Composes with the [Live Preview] and recorder like
+any sink (ADR-0013); the [Detection Loop] never knows it is aiming a motor. Host-side (the Mac is
+the brain); the Pi-side servo driver / frame streamer / command listener live outside this loop.
+_Avoid_: motor sink, servo sink, tracker (that is the [Tracker])
+
+**Turret**:
+The physical pan-tilt platform — Raspberry Pi 5 + Waveshare Pan-Tilt HAT + a USB camera mounted
+*on* the platform — that the [Actuator Sink] aims. Because the camera rides the platform, aiming
+and seeing form one closed loop (visual servoing). The Pi is the actuator only; detection runs on
+the host (ADR-0013).
+_Avoid_: gimbal, mount (bare), pan-tilt (bare — that is the HAT)
+
+**Target Selector**:
+The pure host-side unit that picks which [Track] the [Actuator Sink] follows. Policy:
+**lock-first-id** — latch onto the first stable [Track] `#id` seen and follow it until the [Track]
+is lost, then re-latch. Deterministic, no per-frame target flip-flopping (ADR-0013).
+_Avoid_: chooser, filter (that is the [Tracker]'s recall role, ADR-0004)
+
+**Aim Controller**:
+The pure host-side unit that maps the followed [Track]'s pixel offset from frame centre — the
+error — to an [Aim Command]. Proportional first; PID once the P-only loop is seen to overshoot,
+because a network sits inside the loop (~50–200 ms) and a naive snap oscillates (ADR-0013).
+_Avoid_: PID (bare — PID is one stage of the Controller), servo controller
+
+**Aim Command**:
+The `(pan_delta, tilt_delta)` the [Aim Controller] emits and ships to the [Turret]'s Pi over a
+simple socket. A relative nudge, not an absolute pose; the Pi clamps it to the servos' mechanical
+limits before moving.
+_Avoid_: move, servo command (bare), pose
