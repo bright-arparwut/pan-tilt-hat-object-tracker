@@ -196,7 +196,8 @@ because a network sits inside the loop (~50–200 ms) and a naive snap oscillate
 _Avoid_: PID (bare — PID is one stage of the Controller), servo controller
 
 **Aim Command**:
-The `(pan_delta, tilt_delta)` the [Aim Controller] emits and ships to the [Turret]'s Pi over a
-simple socket. A relative nudge, not an absolute pose; the Pi clamps it to the servos' mechanical
-limits before moving.
-_Avoid_: move, servo command (bare), pose
+The `(pan_delta, tilt_delta)` the [Aim Controller] emits and ships to the [Turret]'s Pi. A
+relative nudge, not an absolute pose — and a *superseding* one: the freshest command wins, so a
+late or out-of-order command is dropped rather than queued (a stale nudge is worse than none).
+The Pi clamps it to the servos' mechanical limits before moving.
+_Avoid_: move, servo command (bare), pose, queued command
