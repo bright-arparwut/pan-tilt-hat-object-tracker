@@ -93,6 +93,22 @@ def test_show_holds_position_and_relatches_after_losing_the_locked_id():
     assert transport.sent[-1].pan_delta < 0.0  # 9's centre (5,5) is left of frame centre (50,25)
 
 
+def test_show_sends_a_command_carrying_plain_python_floats():
+    """Regression (ADR-0013): track centres are numpy floats; if they flow into the AimCommand
+    the turret wire's json.dumps raises 'float32 not JSON serializable' mid-run. The sent command
+    must carry plain floats — and stay json-encodable end to end."""
+    from object_tracker.turret_sink.wire import encode
+
+    transport = FakeTransport()
+    sink = ActuatorSink(transport, _gains(), FRAME_WH)
+
+    sink.show(_blank_frame(), _tracked([5], [[60, 20, 80, 30]]))
+
+    command = transport.sent[0]
+    assert type(command.pan_delta) is float and type(command.tilt_delta) is float
+    encode(command, seq=1)  # must not raise
+
+
 def test_close_closes_the_transport():
     transport = FakeTransport()
     ActuatorSink(transport, _gains(), FRAME_WH).close()
