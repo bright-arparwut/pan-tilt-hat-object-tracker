@@ -1,7 +1,9 @@
-"""Servo angles (ADR-0013 roadmap Phase 1): the pure, hardware-free half of the servo
-driver — ``ServoAngles`` plus mechanical-limit clamping. The real I2C ``ServoDriver`` (the
-HAT/PCA9685 I/O) is a follow-up once Phase 0 hardware bring-up picks a concrete SDK; nothing
-here depends on that choice.
+"""Servo control (ADR-0013 roadmap Phase 1): both halves of the servo layer.
+
+The pure, hardware-free half — ``ServoAngles`` plus mechanical-limit ``clamp_angles`` — comes
+first, followed by the real I²C ``ServoDriver`` (HAT/PCA9685 I/O over an injectable adafruit
+ServoKit). Everything above the driver stays hardware-free and unit-testable on the Mac; only
+``ServoDriver`` touches the SDK, behind a lazy import reached solely when no kit is injected.
 """
 
 from __future__ import annotations

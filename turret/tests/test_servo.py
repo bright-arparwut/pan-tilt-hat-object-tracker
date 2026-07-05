@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from turret_pi.servo import ServoAngles, clamp_angles
+from turret_pi.servo import (
+    CENTER,
+    SERVO_ACTUATION_RANGE_DEG,
+    SERVO_MAX_US,
+    SERVO_MIN_US,
+    ServoAngles,
+    ServoDriver,
+    clamp_angles,
+)
 
 
 def test_clamp_within_range_is_unchanged():
@@ -21,15 +29,6 @@ def test_clamp_tilt_above_max():
 
 def test_clamp_tilt_below_min():
     assert clamp_angles(ServoAngles(90.0, -50.0)) == ServoAngles(90.0, 0.0)
-
-
-from turret_pi.servo import (
-    CENTER,
-    SERVO_ACTUATION_RANGE_DEG,
-    SERVO_MAX_US,
-    SERVO_MIN_US,
-    ServoDriver,
-)
 
 
 class _FakeChannel:
