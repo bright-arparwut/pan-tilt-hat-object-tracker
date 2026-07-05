@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Pi-side actuator for the pan-tilt tracking turret (ADR-0013): servo driver, frame streamer, command listener. Runs on the Raspberry Pi only."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "opencv-python",  # camera capture + MJPEG encode (streamer); cross-platform, so Mac tests can import it
+]
 
 [project.optional-dependencies]
 # Pi-only actuator stack: PCA9685 over I²C, speaking degrees. Pulls in adafruit-blinka,
