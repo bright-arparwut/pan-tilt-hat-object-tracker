@@ -1,8 +1,10 @@
 """turret entrypoint (ADR-0013): wire the ServoDriver, the MJPEG streamer, and the UDP
 command listener into one process. The listener owns the **main thread** (safety-critical —
-it moves motors, so SIGINT/SIGTERM interrupt it directly); the streamer runs on a **daemon
-thread**. Deploy under systemd (``Restart=on-failure``). On exit the servos are recentered
-to a known safe pose.
+it moves motors); the streamer runs on a **daemon thread**. SIGINT/SIGTERM don't raise into
+the listener — they set a stop ``Event`` that both planes poll cooperatively via
+``should_continue`` (the listener each ``recv_timeout``, the streamer each accept/frame), so
+each unwinds cleanly within one poll interval. Deploy under systemd (``Restart=on-failure``).
+On exit the servos are recentered to a known safe pose.
 """
 
 from __future__ import annotations
