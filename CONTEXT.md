@@ -190,10 +190,13 @@ is lost, then re-latch. Deterministic, no per-frame target flip-flopping (ADR-00
 _Avoid_: chooser, filter (that is the [Tracker]'s recall role, ADR-0004)
 
 **Aim Controller**:
-The pure host-side unit that maps the followed [Track]'s pixel offset from frame centre — the
-error — to an [Aim Command]. Proportional first; PID once the P-only loop is seen to overshoot,
-because a network sits inside the loop (~50–200 ms) and a naive snap oscillates (ADR-0013).
-_Avoid_: PID (bare — PID is one stage of the Controller), servo controller
+The pure host-side unit that *decides the size of the nudge*: it maps the followed [Track]'s pixel
+offset from frame centre — the error — to an [Aim Command]. Proportional first; PID once the P-only
+loop is seen to overshoot, because a network sits inside the loop (~50–200 ms) and a naive snap
+oscillates (ADR-0013). It **designs** the command; the Pi-side servo driver merely applies it.
+_Avoid_: PID (bare — PID is one stage of the Controller), servo controller, servo driver (the
+Pi-side unit that *applies* an [Aim Command] — the Controller decides the nudge, it never moves a
+motor)
 
 **Aim Command**:
 The `(pan_delta, tilt_delta)` the [Aim Controller] emits and ships to the [Turret]'s Pi. A
