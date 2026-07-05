@@ -6,7 +6,7 @@ browser, so a minimal ``multipart/x-mixed-replace`` server suffices.
 
 from __future__ import annotations
 
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Callable
 
 import cv2
@@ -48,31 +48,30 @@ def run_streamer(
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            if self.path != path:
-                self.send_error(404)
-                return
-            self.send_response(200)
-            self.send_header(
-                "Content-Type", f"multipart/x-mixed-replace; boundary={_BOUNDARY}"
-            )
-            self.end_headers()
-            while should_continue():
-                ok, frame = cap.read()
-                if not ok:
-                    break
-                encoded, jpeg = cv2.imencode(".jpg", frame)
-                if not encoded:
-                    continue
-                try:
+            try:
+                if self.path != path:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type", f"multipart/x-mixed-replace; boundary={_BOUNDARY}"
+                )
+                self.end_headers()
+                while should_continue():
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
+                    encoded, jpeg = cv2.imencode(".jpg", frame)
+                    if not encoded:
+                        continue
                     self.wfile.write(_encode_part(jpeg.tobytes()))
-                except (BrokenPipeError, ConnectionResetError):
-                    break  # the client (the Mac) went away — end this response cleanly
+            except (BrokenPipeError, ConnectionResetError):
+                return  # the client (the Mac) went away — end this response cleanly
 
         def log_message(self, *args) -> None:
             return  # quiet; the listener owns the console
 
-    server = ThreadingHTTPServer((_BIND_HOST, port), _Handler)
-    server.daemon_threads = True   # don't let a lingering stream thread block process exit
+    server = HTTPServer((_BIND_HOST, port), _Handler)
     server.timeout = _POLL_TIMEOUT_S
     try:
         while should_continue():
