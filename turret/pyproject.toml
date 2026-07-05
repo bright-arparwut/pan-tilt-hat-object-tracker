@@ -6,6 +6,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+# Pi-only actuator stack: PCA9685 over I²C, speaking degrees. Pulls in adafruit-blinka,
+# which only runs on the Pi — so install it there with: uv sync --extra hardware. The
+# ServoDriver import is lazy, so Mac tests pass without this extra present.
+hardware = [
+    "adafruit-circuitpython-servokit",
+]
+
 [project.scripts]
 turret = "turret_pi.main:main"
 
