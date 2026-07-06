@@ -1,0 +1,709 @@
+<title>Turret Signal Stack — Who Owns What</title>
+<style>
+  :where(html, body) {
+    margin: 0;
+    background: #0e1418;
+  }
+
+  .page {
+    --ink: #0e1418;
+    --panel: #161d23;
+    --panel-2: #1c252c;
+    --hairline: #2a343c;
+    --text: #e6edf1;
+    --muted: #8b9aa5;
+    --teal: #45c8b8;
+    --cyan: #4aa8e0;
+    --amber: #e8a33d;
+    --ok: #57b98a;
+    --rust: #c9704a;
+
+    /* ownership descent: software -> external -> silicon -> mechanical */
+    --ours: #45c8b8;
+    --lib: #8ea3c4;
+    --chip: #8fa3ad;
+    --motor: #a39a8c;
+
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+
+    min-height: 100vh;
+    padding: clamp(1.5rem, 4vw, 4rem) clamp(1rem, 4vw, 2rem) 4rem;
+    background:
+      radial-gradient(1100px 560px at 12% -8%, #17242d 0%, transparent 58%),
+      radial-gradient(900px 640px at 104% -4%, #141e26 0%, transparent 52%),
+      var(--ink);
+  }
+
+  .page *,
+  .page *::before,
+  .page *::after { box-sizing: border-box; }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  .mono {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-bottom: clamp(1.6rem, 3.5vw, 2.6rem);
+  }
+
+  .masthead__topline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .masthead h1 {
+    font-size: clamp(1.95rem, 4.4vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 650;
+    text-wrap: balance;
+    margin: 0.4rem 0 0;
+  }
+
+  .masthead h1 .sub {
+    display: block;
+    font-size: clamp(1rem, 1.9vw, 1.2rem);
+    font-weight: 450;
+    letter-spacing: -0.005em;
+    color: var(--muted);
+    margin-top: 0.45rem;
+  }
+
+  .dek {
+    max-width: 65ch;
+    font-size: clamp(1rem, 1.6vw, 1.08rem);
+    color: #c4d0d8;
+    margin: 0.2rem 0 0;
+  }
+  .dek strong { color: var(--teal); font-weight: 600; }
+  .dek .boundary { color: var(--text); font-weight: 600; border-bottom: 1px dashed var(--hairline); }
+
+  /* ownership meter + legend */
+  .keyrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.4rem 2rem;
+    margin-top: 0.9rem;
+  }
+
+  .meter { min-width: 220px; }
+  .meter__bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    height: 10px;
+  }
+  .meter__seg {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--muted) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--muted) 26%, transparent);
+  }
+  .meter__seg--ours {
+    background: var(--teal);
+    border-color: var(--teal);
+    box-shadow: 0 0 14px -1px color-mix(in srgb, var(--teal) 70%, transparent);
+  }
+  .meter__cap {
+    margin-top: 0.55rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .meter__cap b { color: var(--text); font-weight: 600; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .swatch {
+    width: 22px; height: 10px; border-radius: 2px; flex: none;
+    border-left: 3px solid var(--sw, var(--muted));
+    background: color-mix(in srgb, var(--sw, var(--muted)) 14%, var(--panel));
+  }
+  .swatch--dashed { border-left-style: dashed; }
+
+  /* ---------- the stack slab ---------- */
+  .stack {
+    margin-top: 0.4rem;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--panel);
+    box-shadow: 0 24px 60px -34px rgba(0, 0, 0, 0.9);
+  }
+
+  /* ports (in / out of the slab) */
+  .port {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1.4rem;
+    padding: 0.85rem clamp(1rem, 3vw, 1.6rem);
+    background: var(--panel-2);
+  }
+  .port__tag {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid;
+    flex: none;
+  }
+  .port__body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; }
+  .port__label { font-weight: 600; font-size: 0.98rem; }
+  .port__data { font-size: 0.84rem; color: var(--text); }
+  .port__note { font-size: 0.82rem; color: var(--muted); }
+
+  .port--in {
+    border-bottom: 1px solid var(--hairline);
+    box-shadow: inset 0 3px 0 -1px color-mix(in srgb, var(--amber) 55%, transparent);
+  }
+  .port--in .port__tag { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
+  .port--in .port__data { color: var(--amber); }
+
+  .port--out {
+    border-top: 1px solid var(--hairline);
+    box-shadow: inset 0 -3px 0 -1px color-mix(in srgb, var(--motor) 60%, transparent);
+  }
+  .port--out .port__tag { color: var(--motor); border-color: color-mix(in srgb, var(--motor) 55%, transparent); }
+  .port--out .port__data { color: color-mix(in srgb, var(--motor) 85%, var(--text)); }
+
+  /* a band = one layer */
+  .band {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(230px, 300px) 1fr;
+    gap: 0.4rem clamp(1rem, 3vw, 2.2rem);
+    padding: clamp(1.1rem, 2.6vw, 1.7rem) clamp(1rem, 3vw, 1.7rem) clamp(1.1rem, 2.6vw, 1.7rem)
+             clamp(1.4rem, 3.4vw, 2.1rem);
+  }
+  .band::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--rail);
+  }
+  .band--ours { background: linear-gradient(100deg, color-mix(in srgb, var(--ours) 11%, var(--panel)), var(--panel) 62%); }
+  .band--ours::before { width: 6px; box-shadow: 0 0 22px 1px color-mix(in srgb, var(--ours) 55%, transparent); }
+  .band--lib { background: color-mix(in srgb, var(--lib) 5%, var(--panel)); }
+  .band--lib::before { background: repeating-linear-gradient(180deg, var(--rail) 0 7px, transparent 7px 14px); }
+  .band--chip { background: color-mix(in srgb, var(--chip) 4%, var(--panel)); }
+  .band--motor { background: color-mix(in srgb, var(--motor) 4%, var(--panel)); }
+
+  .band--ours { --rail: var(--ours); }
+  .band--lib { --rail: var(--lib); }
+  .band--chip { --rail: var(--chip); }
+  .band--motor { --rail: var(--motor); }
+
+  /* identity column */
+  .band__id { display: flex; flex-direction: column; gap: 0.4rem; }
+  .band__head { display: flex; align-items: baseline; gap: 0.6rem; }
+  .band__index {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: color-mix(in srgb, var(--rail) 80%, var(--muted));
+    letter-spacing: 0.05em;
+  }
+  .band__name {
+    font-family: var(--mono);
+    font-size: 1.28rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .band__kind { font-size: 0.82rem; color: var(--muted); }
+  .band__kind b { color: color-mix(in srgb, var(--rail) 75%, var(--text)); font-weight: 600; }
+  .band__why {
+    font-size: 0.9rem;
+    color: #c0ccd4;
+    font-style: italic;
+    max-width: 34ch;
+  }
+  .band__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.15rem; }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .chip--own {
+    color: var(--ink);
+    background: var(--rail);
+    border-color: var(--rail);
+    font-weight: 700;
+  }
+  .chip--ghost {
+    color: color-mix(in srgb, var(--rail) 82%, var(--text));
+    border-color: color-mix(in srgb, var(--rail) 45%, transparent);
+    background: color-mix(in srgb, var(--rail) 10%, transparent);
+  }
+  .chip--pending { color: var(--rust); border-color: color-mix(in srgb, var(--rust) 55%, transparent); background: color-mix(in srgb, var(--rust) 10%, transparent); }
+  .chip--phys { color: var(--muted); border-color: var(--hairline); background: transparent; }
+
+  /* facts grid */
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.9rem 1.4rem;
+    margin: 0;
+    align-content: start;
+  }
+  .fact { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .fact dd { margin: 0; font-size: 0.9rem; color: #d5dfe6; }
+
+  .io {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--text);
+    background: color-mix(in srgb, var(--ink) 55%, var(--panel-2));
+    border: 1px solid var(--hairline);
+    border-left: 2px solid color-mix(in srgb, var(--rail) 70%, var(--hairline));
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    overflow-wrap: anywhere;
+  }
+  .io .in { color: color-mix(in srgb, var(--rail) 75%, var(--text)); }
+  .io .arrow { color: var(--muted); padding: 0 0.15rem; }
+  .io .out { color: var(--text); }
+
+  .verdict {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 0.16rem 0.5rem;
+    border-radius: 5px;
+    margin-bottom: 0.35rem;
+  }
+  .verdict--keep { color: var(--ink); background: var(--ours); }
+  .verdict--avoid { color: var(--rust); background: color-mix(in srgb, var(--rust) 16%, transparent); border: 1px solid color-mix(in srgb, var(--rust) 50%, transparent); }
+  .verdict--hw { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); border: 1px solid var(--hairline); }
+
+  /* ---------- seams (the boundaries / handoffs) ---------- */
+  .seam {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.5rem clamp(1.4rem, 3.4vw, 2.1rem);
+    background: var(--panel-2);
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .seam__chev { color: var(--hairline); font-size: 0.9rem; }
+  .seam__lang { color: color-mix(in srgb, var(--text) 78%, var(--muted)); letter-spacing: 0.12em; text-transform: uppercase; }
+  .seam__val { color: var(--text); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .seam--boundary {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    background:
+      repeating-linear-gradient(45deg,
+        color-mix(in srgb, var(--teal) 8%, var(--panel-2)) 0 10px,
+        var(--panel-2) 10px 20px);
+    border-top: 1px solid color-mix(in srgb, var(--teal) 45%, var(--hairline));
+    border-bottom: 1px solid color-mix(in srgb, var(--teal) 45%, var(--hairline));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--teal) 30%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--teal) 30%, transparent);
+    flex-wrap: wrap;
+  }
+  .seam--boundary .seam__title {
+    color: var(--teal);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+  }
+  .seam--boundary .seam__note {
+    color: color-mix(in srgb, var(--text) 72%, var(--muted));
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-size: 0.75rem;
+  }
+  .seam--boundary .seam__val { color: var(--teal); }
+
+  /* ---------- analogy ---------- */
+  .analogy { margin-top: clamp(1.8rem, 4vw, 2.8rem); }
+  .analogy__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1rem; margin-bottom: 0.9rem; }
+  .analogy__head h2 { font-size: 1.15rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .analogy__head p { margin: 0; font-size: 0.86rem; color: var(--muted); }
+  .analogy__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.7rem;
+  }
+  .acard {
+    border: 1px solid var(--hairline);
+    border-top: 2px solid var(--ac, var(--muted));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--ac, var(--muted)) 5%, var(--panel));
+    padding: 0.85rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .acard__layer { font-family: var(--mono); font-size: 0.8rem; color: color-mix(in srgb, var(--ac) 80%, var(--text)); }
+  .acard__eq { font-size: 0.95rem; font-weight: 600; color: var(--text); text-wrap: balance; }
+  .acard__sub { font-size: 0.8rem; color: var(--muted); }
+
+  /* ---------- colophon ---------- */
+  .colophon {
+    margin-top: clamp(1.8rem, 4vw, 2.6rem);
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--hairline);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .colophon b { color: color-mix(in srgb, var(--text) 80%, var(--muted)); font-weight: 600; }
+
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 620px) {
+    .band { grid-template-columns: 1fr; }
+    .band__id { padding-bottom: 0.2rem; border-bottom: 1px dashed var(--hairline); margin-bottom: 0.5rem; }
+    .seam__val { margin-left: 0; width: 100%; }
+    .seam--boundary .seam__val { margin-top: 0.15rem; }
+  }
+
+  /* ---------- motion (guarded) ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(10px); animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+    .stack > * { opacity: 0; animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+    .stack > *:nth-child(1) { animation-delay: 0.05s; }
+    .stack > *:nth-child(2) { animation-delay: 0.11s; }
+    .stack > *:nth-child(3) { animation-delay: 0.17s; }
+    .stack > *:nth-child(4) { animation-delay: 0.23s; }
+    .stack > *:nth-child(5) { animation-delay: 0.29s; }
+    .stack > *:nth-child(6) { animation-delay: 0.35s; }
+    .stack > *:nth-child(7) { animation-delay: 0.41s; }
+    .stack > *:nth-child(8) { animation-delay: 0.47s; }
+    .stack > *:nth-child(9) { animation-delay: 0.53s; }
+    .band--ours::before { animation: railglow 2.4s ease-in-out 0.7s 2; }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+    @keyframes railglow {
+      0%, 100% { box-shadow: 0 0 22px 1px color-mix(in srgb, var(--ours) 55%, transparent); }
+      50% { box-shadow: 0 0 30px 3px color-mix(in srgb, var(--ours) 78%, transparent); }
+    }
+  }
+</style>
+
+<main class="page">
+  <div class="wrap">
+
+    <header class="masthead reveal">
+      <div class="masthead__topline">
+        <p class="eyebrow">Turret · Hardware Architecture · Sheet ③ of 3</p>
+        <p class="eyebrow">Mac brain → Pi body → PCA9685 → servo</p>
+      </div>
+      <h1>
+        Who owns what
+        <span class="sub">The four layers between our code and the spinning servo.</span>
+      </h1>
+      <p class="dek">
+        You <strong>only write the top band</strong>. Everything under the
+        <span class="boundary">degrees boundary</span> is downloaded, silicon, or physics — each layer
+        owns exactly one concern and speaks exactly one language. Replacing a lower layer means
+        re-implementing something already solved.
+      </p>
+
+      <div class="keyrow">
+        <div class="meter" role="img" aria-label="One of the four layers is authored by us; the other three are downloaded, chip, and motor.">
+          <div class="meter__bar">
+            <span class="meter__seg meter__seg--ours"></span>
+            <span class="meter__seg"></span>
+            <span class="meter__seg"></span>
+            <span class="meter__seg"></span>
+          </div>
+          <p class="meter__cap"><b>1 of 4 layers is yours</b> · ≈ 30 lines · the rest is installed, a chip, or a motor</p>
+        </div>
+
+        <div class="legend" aria-label="Ownership key">
+          <span><i class="swatch" style="--sw: var(--teal)"></i> we write</span>
+          <span><i class="swatch swatch--dashed" style="--sw: var(--lib)"></i> we install</span>
+          <span><i class="swatch" style="--sw: var(--chip)"></i> chip</span>
+          <span><i class="swatch" style="--sw: var(--motor)"></i> motor</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="stack" aria-label="The four-layer stack from our code down to the servo">
+
+      <div class="port port--in">
+        <span class="port__tag">INPUT ↓</span>
+        <div class="port__body">
+          <span class="port__label">Aim Command over UDP</span>
+          <span class="port__data mono">:9000 · {"pan_delta": +2.0, "tilt_delta": 0.0, "seq": n}</span>
+          <span class="port__note">relative nudge · image-relative · freshest-wins</span>
+        </div>
+      </div>
+
+      <!-- LAYER 1 -->
+      <article class="band band--ours">
+        <div class="band__id">
+          <div class="band__head">
+            <span class="band__index">01</span>
+            <h2 class="band__name">ServoDriver</h2>
+          </div>
+          <p class="band__kind"><b>our code</b> · ~30 lines</p>
+          <p class="band__why">the only layer that understands <em>your</em> Aim Command.</p>
+          <div class="band__chips">
+            <span class="chip chip--own">we write</span>
+            <span class="chip chip--pending">pending · Phase 1</span>
+          </div>
+        </div>
+        <dl class="facts">
+          <div class="fact">
+            <dt>Owns</dt>
+            <dd>Accumulate the <em>relative</em> deltas onto the pose, <span class="mono">clamp_angles</span> to
+              mechanical limits, axis sign, current pose. Satisfies the <span class="mono">Servo</span> Protocol
+              the listener calls.</dd>
+          </div>
+          <div class="fact">
+            <dt>In → Out</dt>
+            <dd class="io"><span class="in">pan_delta / tilt_delta</span> <span class="arrow">→</span>
+              <span class="out">kit.servo[n].angle = 47</span>
+              <br><span style="color:var(--muted)">degrees, relative → degrees, absolute</span></dd>
+          </div>
+          <div class="fact">
+            <dt>Replace?</dt>
+            <dd><span class="verdict verdict--keep">No</span> It's <em>our</em> logic — the reason the stack exists.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <!-- SEAM: the degrees boundary -->
+      <div class="seam seam--boundary" aria-label="The degrees boundary — the key handoff">
+        <span class="seam__title">The degrees boundary</span>
+        <span class="seam__note">above, we author degrees — below, it's all downloaded &amp; silicon</span>
+        <span class="seam__val mono">angle = 47°</span>
+      </div>
+
+      <!-- LAYER 2 -->
+      <article class="band band--lib">
+        <div class="band__id">
+          <div class="band__head">
+            <span class="band__index">02</span>
+            <h2 class="band__name">ServoKit</h2>
+          </div>
+          <p class="band__kind"><b>downloaded library</b> · adafruit-circuitpython-pca9685</p>
+          <p class="band__why">so you never hand-write a PCA9685 register map.</p>
+          <div class="band__chips">
+            <span class="chip chip--ghost">we install</span>
+            <span class="chip chip--phys">pip install</span>
+          </div>
+        </div>
+        <dl class="facts">
+          <div class="fact">
+            <dt>Owns</dt>
+            <dd>degrees → pulse width → duty % → 12-bit tick → the exact I²C register writes the chip wants
+              (<span class="mono">MODE1</span>, <span class="mono">PRESCALE</span>,
+              <span class="mono">LED0_ON/OFF</span>…), plus the 50 Hz PWM prescaler.</dd>
+          </div>
+          <div class="fact">
+            <dt>In → Out</dt>
+            <dd class="io"><span class="in">angle in degrees</span> <span class="arrow">→</span>
+              <span class="out">I²C register bytes → 0x40</span>
+              <br><span style="color:var(--muted)">500 + (47/180)×2000 ≈ 1022 µs → tick 209</span></dd>
+          </div>
+          <div class="fact">
+            <dt>Replace?</dt>
+            <dd><span class="verdict verdict--avoid">Only badly</span> Re-writing it in raw <span class="mono">smbus2</span> —
+              more code, more bugs, zero benefit.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <!-- SEAM -->
+      <div class="seam">
+        <span class="seam__chev">▽</span>
+        <span class="seam__lang">I²C register bytes</span>
+        <span class="seam__val mono">LED0_ON=0 · LED0_OFF=209 → 0x40</span>
+      </div>
+
+      <!-- LAYER 3 -->
+      <article class="band band--chip">
+        <div class="band__id">
+          <div class="band__head">
+            <span class="band__index">03</span>
+            <h2 class="band__name">PCA9685</h2>
+          </div>
+          <p class="band__kind"><b>chip</b> · on the Waveshare Pan-Tilt HAT</p>
+          <p class="band__why">generates real PWM off the CPU — 16 channels at once.</p>
+          <div class="band__chips">
+            <span class="chip chip--ghost">chip</span>
+            <span class="chip chip--phys">hardware</span>
+          </div>
+        </div>
+        <dl class="facts">
+          <div class="fact">
+            <dt>Owns</dt>
+            <dd>Turning register values into a real <em>PWM electrical signal</em> — 16 channels, 12-bit duty,
+              50 Hz — independent of the Pi 5's CPU and its GPIO-PWM breakage.</dd>
+          </div>
+          <div class="fact">
+            <dt>In → Out</dt>
+            <dd class="io"><span class="in">I²C register values</span> <span class="arrow">→</span>
+              <span class="out">PWM pulse trains, ch 0 / ch 1</span>
+              <br><span style="color:var(--muted)">~1022 µs HIGH every 20 ms</span></dd>
+          </div>
+          <div class="fact">
+            <dt>Replace?</dt>
+            <dd><span class="verdict verdict--hw">It's hardware</span> A silicon PWM generator on the I²C bus.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <!-- SEAM -->
+      <div class="seam">
+        <span class="seam__chev">▽</span>
+        <span class="seam__lang">PWM pulse train</span>
+        <span class="seam__val mono">~1022 µs / 20 ms · 50 Hz · ch 0 = pan</span>
+      </div>
+
+      <!-- LAYER 4 -->
+      <article class="band band--motor">
+        <div class="band__id">
+          <div class="band__head">
+            <span class="band__index">04</span>
+            <h2 class="band__name">Servo</h2>
+          </div>
+          <p class="band__kind"><b>motor</b> · pan = ch 0, tilt = ch 1</p>
+          <p class="band__why">turns an electrical pulse into torque.</p>
+          <div class="band__chips">
+            <span class="chip chip--ghost">motor</span>
+            <span class="chip chip--phys">physics</span>
+          </div>
+        </div>
+        <dl class="facts">
+          <div class="fact">
+            <dt>Owns</dt>
+            <dd>Its internal control circuit maps <em>pulse width → shaft angle</em>
+              (~1.5 ms ≈ center). The camera rides this platform, so aiming and seeing are one loop.</dd>
+          </div>
+          <div class="fact">
+            <dt>In → Out</dt>
+            <dd class="io"><span class="in">~500–2500 µs pulse / 20 ms</span> <span class="arrow">→</span>
+              <span class="out">physical shaft rotation</span>
+              <br><span style="color:var(--muted)">range 0–180°, per-servo calibrated</span></dd>
+          </div>
+          <div class="fact">
+            <dt>Replace?</dt>
+            <dd><span class="verdict verdict--hw">It's the motor</span> The thing that actually moves.</dd>
+          </div>
+        </dl>
+      </article>
+
+      <div class="port port--out">
+        <span class="port__tag">OUTPUT ↓</span>
+        <div class="port__body">
+          <span class="port__label">Shaft rotation</span>
+          <span class="port__data mono">pan shaft ≈ 47° · mechanical angle</span>
+          <span class="port__note">the platform (and its camera) physically move</span>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="analogy reveal" aria-label="The stack as a print job">
+      <div class="analogy__head">
+        <h2>Same shape as a print job</h2>
+        <p>you author the document; the rest is driver, controller, and ink.</p>
+      </div>
+      <div class="analogy__grid">
+        <div class="acard" style="--ac: var(--ours)">
+          <span class="acard__layer mono">ServoDriver</span>
+          <span class="acard__eq">“Print this pose.”</span>
+          <span class="acard__sub">your app's intent</span>
+        </div>
+        <div class="acard" style="--ac: var(--lib)">
+          <span class="acard__layer mono">ServoKit</span>
+          <span class="acard__eq">The printer driver</span>
+          <span class="acard__sub">speaks the PCA9685's dialect</span>
+        </div>
+        <div class="acard" style="--ac: var(--chip)">
+          <span class="acard__layer mono">PCA9685</span>
+          <span class="acard__eq">The printer's controller</span>
+          <span class="acard__sub">drives the mechanism</span>
+        </div>
+        <div class="acard" style="--ac: var(--motor)">
+          <span class="acard__layer mono">Servo</span>
+          <span class="acard__eq">Ink on the page</span>
+          <span class="acard__sub">the physical result</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="colophon">
+      <span><b>Grounded in</b> ADR-0013 · 2026-07-04 pan-tilt turret design</span>
+      <span><b>Fact base</b> viz-shared-identity</span>
+      <span><b>HAT SDK</b> adafruit-circuitpython-servokit — speaks degrees</span>
+    </footer>
+
+  </div>
+</main>
