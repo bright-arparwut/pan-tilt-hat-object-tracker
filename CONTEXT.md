@@ -173,7 +173,7 @@ _Avoid_: realtime mode
 The [Frame Sink] that, instead of drawing a frame, consumes its [Track]s and drives a physical
 [Turret] to keep the followed [Track] centred. Composes with the [Live Preview] and recorder like
 any sink (ADR-0013); the [Detection Loop] never knows it is aiming a motor. Host-side (the Mac is
-the brain); the Pi-side servo driver / frame streamer / command listener live outside this loop.
+the brain); the Pi-side [Servo Driver] / [Frame Streamer] / [Command Listener] live outside this loop.
 _Avoid_: motor sink, servo sink, tracker (that is the [Tracker])
 
 **Turret**:
@@ -193,10 +193,9 @@ _Avoid_: chooser, filter (that is the [Tracker]'s recall role, ADR-0004)
 The pure host-side unit that *decides the size of the nudge*: it maps the followed [Track]'s pixel
 offset from frame centre — the error — to an [Aim Command]. Proportional first; PID once the P-only
 loop is seen to overshoot, because a network sits inside the loop (~50–200 ms) and a naive snap
-oscillates (ADR-0013). It **designs** the command; the Pi-side servo driver merely applies it.
-_Avoid_: PID (bare — PID is one stage of the Controller), servo controller, servo driver (the
-Pi-side unit that *applies* an [Aim Command] — the Controller decides the nudge, it never moves a
-motor)
+oscillates (ADR-0013). It **designs** the command; the Pi-side [Servo Driver] merely applies it.
+_Avoid_: PID (bare — PID is one stage of the Controller), servo controller, servo driver (that is
+the Pi-side [Servo Driver], which *applies* the command; the Controller only decides the nudge)
 
 **Aim Command**:
 The `(pan_delta, tilt_delta)` the [Aim Controller] emits and ships to the [Turret]'s Pi. A
@@ -204,3 +203,33 @@ relative nudge, not an absolute pose — and a *superseding* one: the freshest c
 late or out-of-order command is dropped rather than queued (a stale nudge is worse than none).
 The Pi clamps it to the servos' mechanical limits before moving.
 _Avoid_: move, servo command (bare), pose, queued command
+
+**Command Listener**:
+The Pi-side unit that receives [Aim Command]s off the network and hands each to the [Servo
+Driver]. It enforces the command's superseding contract — a stale or out-of-order command is
+dropped, never queued — while re-latching after a quiet gap so a sender restart is not ignored
+forever. Receive-only: it neither designs a nudge (the [Aim Controller]) nor moves a motor (the
+[Servo Driver]).
+_Avoid_: receiver (bare), command server, socket loop
+
+**Servo Driver**:
+The Pi-side unit that *applies* an [Aim Command]: it adds the relative nudge onto the [Turret]'s
+current [Turret Pose], clamps to the servos' mechanical limits, and drives the servos there — the
+counterpart to the [Aim Controller], which designs the nudge and never moves a motor. The only
+unit that touches the motors; on shutdown it returns to the mechanical centre, the known safe
+[Turret Pose].
+_Avoid_: servo controller (conflates it with the [Aim Controller]), motor driver, actuator (bare)
+
+**Turret Pose**:
+Where the [Turret] is pointing now — an absolute pan/tilt aim the [Servo Driver] holds and
+updates. Distinct from an [Aim Command], which is a *relative* nudge: the Driver accumulates each
+nudge onto the Pose and clamps, so the Pose is the running absolute state whose mechanical centre
+is the known safe value.
+_Avoid_: angles (bare), position, aim (bare), servo state
+
+**Frame Streamer**:
+The Pi-side unit that serves the [Turret]'s on-platform camera to the host, which opens it as a
+[Live Source]. It is how the host sees through the turret's eye — the camera rides the platform it
+aims, so streaming the view back is what closes the visual-servoing loop. Frames only: it carries
+no detection or control logic.
+_Avoid_: video server, MJPEG server (the transport is incidental), camera feed (bare)
