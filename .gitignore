@@ -224,5 +224,12 @@ __marimo__/
 *.annotated.mp4
 *.detections.jsonl
 
+# Tracker config dumps (ultralytics writes these into CWD at runtime)
+/botsort.yaml
+/bytetrack.yaml
+
+# Generated tracking outputs (test footage)
+footage/test/
+
 # macOS
 .DS_Store

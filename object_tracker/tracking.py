@@ -49,7 +49,10 @@ def _present_centers(confirmed: sv.Detections) -> dict[int, tuple[float, float]]
     centers: dict[int, tuple[float, float]] = {}
     for i, tid in enumerate(confirmed.tracker_id):
         x1, y1, x2, y2 = confirmed.xyxy[i]
-        centers[int(tid)] = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+        # float(...) honours the annotated python-float contract: xyxy is numpy (float32 from
+        # model.track()), and a numpy centre flows into the turret wire's json.dumps, which
+        # raises "float32 is not JSON serializable" (ADR-0013).
+        centers[int(tid)] = (float((x1 + x2) / 2.0), float((y1 + y2) / 2.0))
     return centers
 
 

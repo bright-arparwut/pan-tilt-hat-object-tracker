@@ -61,15 +61,17 @@ class FakeSource:
 
 
 class RecordingSink:
-    """A ``FrameSink`` that records shown frames; stops after ``stop_after`` shows."""
+    """A ``FrameSink`` that records shown frames + tracks; stops after ``stop_after`` shows."""
 
     def __init__(self, stop_after: int | None = None) -> None:
         self.shown: list[np.ndarray] = []
+        self.shown_tracks: list = []
         self.closed = 0
         self._stop_after = stop_after
 
-    def show(self, frame: np.ndarray) -> bool:
+    def show(self, frame: np.ndarray, tracks=None) -> bool:
         self.shown.append(frame)
+        self.shown_tracks.append(tracks)
         if self._stop_after is not None and len(self.shown) >= self._stop_after:
             return False
         return True
@@ -182,6 +184,27 @@ def test_run_track_path_calls_track_and_records_id(tmp_path):
     rows = [json.loads(line) for line in side.read_text().splitlines()]
     assert len(rows) == 2
     assert [d["track_id"] for d in rows[0]["detections"]] == [7]
+
+
+def test_run_track_path_passes_confirmed_tracks_to_sink():
+    source = FakeSource(_frames(2), _info(2))
+    sink = RecordingSink()
+
+    run(StubTrackingDetector(), source, sink, _NO_ZOOM, _TRACK, sidecar_path=None)
+
+    assert len(sink.shown_tracks) == 2
+    for tracks in sink.shown_tracks:
+        assert tracks is not None
+        assert list(tracks.tracker_id) == [7]
+
+
+def test_run_no_track_path_passes_none_tracks():
+    source = FakeSource(_frames(2), _info(2))
+    sink = RecordingSink()
+
+    run(StubDetector(), source, sink, _NO_ZOOM, _NO_TRACK, sidecar_path=None)
+
+    assert sink.shown_tracks == [None, None]
 
 
 def test_run_live_sidecar_includes_capture_ts(tmp_path):

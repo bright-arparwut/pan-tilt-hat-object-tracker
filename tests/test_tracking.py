@@ -30,3 +30,15 @@ def test_present_centers_maps_tracker_id_to_box_centre():
 
 def test_present_centers_empty_when_no_tracks():
     assert _present_centers(sv.Detections.empty()) == {}
+
+
+def test_present_centers_returns_plain_python_floats():
+    """Centres feed json.dumps in the turret wire (ADR-0013); a numpy float32/64 there raises
+    'not JSON serializable', so the function must honour its float-typed contract."""
+    confirmed = sv.Detections(
+        xyxy=np.asarray([[0, 0, 10, 20]], dtype=np.float32),  # model.track() emits float32
+        class_id=np.asarray([COCO_BIRD_CLASS_ID]),
+        tracker_id=np.asarray([5]),
+    )
+    ((cx, cy),) = _present_centers(confirmed).values()
+    assert type(cx) is float and type(cy) is float

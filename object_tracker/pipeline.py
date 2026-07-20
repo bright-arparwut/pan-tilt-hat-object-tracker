@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import cast
 
+import supervision as sv
 from tqdm import tqdm
 
 from .annotators import build_detection_annotator
@@ -61,8 +62,10 @@ def run(
     try:
         for idx, frame in enumerate(tqdm(source, total=info.total_frames, unit="f")):
             ts = time.time() if is_live else None
+            tracks: sv.Detections | None = None
             if rt is not None and tracking_detector is not None:
                 confirmed = tracking_detector.track(frame)
+                tracks = confirmed
                 records = detection_records(confirmed, with_track_id=True)
                 annotated = _annotate_confirmed(frame, confirmed, rt.ann)
                 if rt.slots is not None:
@@ -80,7 +83,7 @@ def run(
                     )
             if sidecar is not None:
                 sidecar.write(json.dumps(frame_record(idx, records, ts)) + "\n")
-            if not sink.show(annotated):
+            if not sink.show(annotated, tracks):
                 break
     finally:
         # Release every resource even if an earlier teardown step raises (e.g. a window
