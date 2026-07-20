@@ -57,6 +57,35 @@ the Pi pulls only the small Pi-side dependencies.
   its own wire.
 - Power the Pi from a proper **5V/5A** supply, and feed servo power as the HAT specifies.
 
+## Servo calibration (mechanical limits)
+
+The servos' *electrical* range is a full 0–180°, but the assembled bracket's *mechanical* travel is
+narrower — driving a servo past where the bracket physically stops **stalls** the motor: it strains,
+buzzes, and never settles. Software clamps every commanded angle to the mechanical limits so a stray
+command can't do this (ADR-0013), but the limits have to be **measured on the built platform** first.
+
+**Measure with the teleop harness** (on the Pi, HAT powered):
+```bash
+uv run python -m turret_pi.teleop      # WASD to nudge 5° at a time, q to quit
+```
+Nudge toward each extreme (`a`/`d` = pan left/right, `w`/`s` = tilt up/down); it prints the pose
+after every move. **The moment the platform stops moving or the servo starts to strain/buzz, back
+off immediately** — the last angle it reached *freely* is that axis's limit. Holding a servo against
+its stop draws a current spike that can brown out the Pi and wear the gears.
+
+**Measured on this build** (frozen in `turret_pi/servo.py`):
+
+| Axis | Min | Max | Notes |
+|---|---|---|---|
+| Pan | 0° | 180° | full travel — bracket clears both sides |
+| Tilt | 20° | 115° | bracket fouls the base below 20°, hits the mount above 115° |
+
+These are the `PAN_MIN_DEG` / `PAN_MAX_DEG` / `TILT_MIN_DEG` / `TILT_MAX_DEG` constants. The
+startup/shutdown **safe centre** (`CENTER`) is derived as the mid-range of each axis — **pan 90°,
+tilt 67.5°** — so a fresh or recentred turret sits in the middle of its *real* travel, not at a raw
+90° that would tilt it hard toward one stop. Re-measure and update these four constants if you
+re-bracket or swap servos.
+
 ## Running
 
 Once the pending components exist (see *Current status* below):
@@ -98,8 +127,9 @@ uv run track --source 0 --track --turret 127.0.0.1:9000        # terminal 2 (Mac
 ```
 
 **Phase-1 first steps on the real Pi:** build `ServoDriver`, then a keyboard-teleop script to
-calibrate the axis **signs** and servo **pulse range** and confirm the pin channels — *before*
-closing the loop (the sign flip is the classic first bug, ADR-0013).
+calibrate the axis **signs**, servo **pulse range**, and **mechanical limits** (see *Servo
+calibration* above) and confirm the pin channels — *before* closing the loop (the sign flip is the
+classic first bug, ADR-0013).
 
 ## Troubleshooting
 
@@ -113,6 +143,9 @@ closing the loop (the sign flip is the classic first bug, ADR-0013).
   the HAT feeds servo power.
 - **Servo moves the wrong way** — sign error; flip `PAN_SIGN`/`TILT_SIGN` in `ServoDriver` (that's
   what the Phase-1 teleop script is for).
+- **Servo strains / buzzes and won't settle at a tilt or pan extreme** — it's being commanded past
+  its mechanical limit. Narrow the offending `*_MIN_DEG`/`*_MAX_DEG` in `servo.py` to the angle where
+  it still moved freely (see *Servo calibration*).
 - **Ports blocked** — default Raspberry Pi OS has no firewall; if you enabled `ufw`, open UDP 9000
   and TCP 8000.
 

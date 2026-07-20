@@ -14,8 +14,8 @@ from dataclasses import dataclass
 # stray command never stalls or strips a servo (roadmap Phase 1 gotcha).
 PAN_MIN_DEG = 0.0
 PAN_MAX_DEG = 180.0
-TILT_MIN_DEG = 0.0
-TILT_MAX_DEG = 180.0
+TILT_MIN_DEG = 20.0   # bracket fouls the base below this — measured on the teleop harness
+TILT_MAX_DEG = 115.0  # bracket hits the mount above this — measured on the teleop harness
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,12 @@ def clamp_angles(angles: ServoAngles) -> ServoAngles:
 
 PAN_CHANNEL = 0
 TILT_CHANNEL = 1
-CENTER = ServoAngles(pan_deg=90.0, tilt_deg=90.0)  # mid-range on both axes
+# Startup/safe pose: the geometric mid-range of each axis's mechanical limits, so a fresh
+# turret sits centred within its real travel (pan 90.0, tilt 67.5) rather than at a raw 90.
+CENTER = ServoAngles(
+    pan_deg=(PAN_MIN_DEG + PAN_MAX_DEG) / 2.0,
+    tilt_deg=(TILT_MIN_DEG + TILT_MAX_DEG) / 2.0,
+)
 
 # Per-servo calibration — measured with the Phase-1 teleop harness, then frozen (spec D3).
 SERVO_MIN_US = 500
