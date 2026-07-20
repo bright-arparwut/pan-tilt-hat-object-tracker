@@ -88,8 +88,6 @@ re-bracket or swap servos.
 
 ## Running
 
-Once the pending components exist (see *Current status* below):
-
 **On the Pi** — start the actuator (streamer + command listener):
 ```bash
 uv run turret --port 9000 --stream-port 8000
@@ -103,33 +101,28 @@ uv run track --source http://<pi-ip>:8000/stream.mjpg --track --turret <pi-ip>:9
 The connection at runtime is two IP channels: **video up** (MJPEG over HTTP, port 8000) and
 **Aim Commands down** (UDP, port 9000). SSH is only for setup/admin.
 
-## Current status — what's built vs pending
+## Status
 
-Built & tested (no hardware needed): `wire.decode`, `ServoAngles`/`clamp_angles`, the **Command
-Listener** (`run_listener`).
+All Pi-side units are built and unit-tested Mac-side (no hardware): `wire.decode`,
+`ServoAngles`/`clamp_angles`, the **Command Listener** (`run_listener`), the real I²C `ServoDriver`
+(PCA9685), the MJPEG Frame **Streamer**, the `teleop` calibration harness, and `main.py` — so the
+`turret = "turret_pi.main:main"` entrypoint in `pyproject.toml` runs.
 
-**Pending — needs the hardware, blocks `uv run turret`:**
+What only the Pi can confirm is the live hardware behaviour: I²C servo motion and USB-camera MJPEG
+capture. During bring-up, verify in this order:
 
-| Part | Spec |
-|---|---|
-| `ServoDriver` (real I²C / PCA9685) | `docs/superpowers/specs/2026-07-05-turret-pi-hardware-bringup-spec.md` |
-| Frame Streamer (MJPEG over HTTP) | same |
-| `main.py` (entrypoint) | same |
+1. **Servo axis signs + mechanical limits** — run the teleop harness and calibrate (see *Servo
+   calibration*). The sign flip is the classic first bug (ADR-0013): if an axis moves the wrong way,
+   flip `PAN_SIGN`/`TILT_SIGN` in `servo.py`.
+2. **Camera stream** — start `uv run turret` and open `http://<pi-ip>:8000/stream.mjpg` in a browser.
+3. **Closed loop** — run the Mac tracker against the stream (see *Running*).
 
-The `turret` entrypoint in `pyproject.toml` (`turret = "turret_pi.main:main"`) is declared but
-dangling until `main.py` exists.
-
-**Test the command plane now, before the Pi arrives** — on the Mac, watch the exact Aim Commands
-with the no-hardware listener:
+**Dry-run the command plane without the Pi** — on the Mac, watch the exact Aim Commands the tracker
+emits with the no-hardware listener:
 ```bash
 uv run python scripts/fake_turret_listener.py --port 9000      # terminal 1
 uv run track --source 0 --track --turret 127.0.0.1:9000        # terminal 2 (Mac webcam)
 ```
-
-**Phase-1 first steps on the real Pi:** build `ServoDriver`, then a keyboard-teleop script to
-calibrate the axis **signs**, servo **pulse range**, and **mechanical limits** (see *Servo
-calibration* above) and confirm the pin channels — *before* closing the loop (the sign flip is the
-classic first bug, ADR-0013).
 
 ## Troubleshooting
 
