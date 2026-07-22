@@ -174,6 +174,8 @@ The [Frame Sink] that, instead of drawing a frame, consumes its [Track]s and dri
 [Turret] to keep the followed [Track] centred. Composes with the [Live Preview] and recorder like
 any sink (ADR-0013); the [Detection Loop] never knows it is aiming a motor. Host-side (the Mac is
 the brain); the Pi-side [Servo Driver] / [Frame Streamer] / [Command Listener] live outside this loop.
+When no [Track] has been locked for a grace period it runs [Sentry Mode] instead of holding
+position (ADR-0014).
 _Avoid_: motor sink, servo sink, tracker (that is the [Tracker])
 
 **Turret**:
@@ -203,6 +205,24 @@ relative nudge, not an absolute pose — and a *superseding* one: the freshest c
 late or out-of-order command is dropped rather than queued (a stale nudge is worse than none).
 The Pi clamps it to the servos' mechanical limits before moving.
 _Avoid_: move, servo command (bare), pose, queued command
+
+**Sentry Mode**:
+What the [Actuator Sink] does when no [Track] has been locked for a grace period: sweep the pan
+axis across its full range as a continuous triangle wave (first direction left) while relocating
+tilt to a fixed patrol angle, until a [Track] appears — then hand back to tracking on the very
+next frame. A pure host-side state machine (`sentry.py`) emitting ordinary [Aim Command]s through
+the existing wire; the Pi cannot tell a sweep nudge from an aim nudge, by design. Enabled
+automatically with `--turret`; tuned by constants, not flags (ADR-0014).
+_Avoid_: patrol mode, search sweep, scan, idle mode
+
+**Pose Estimate**:
+The host's dead-reckoned belief about the [Turret Pose]: a pan and a tilt estimate that start at
+the Pi's startup recenter pose and accumulate every delta the [Actuator Sink] ships — tracking
+and sentry alike — clamped with host-side mirrors of the Pi's servo limits (no shared module).
+Needed because the wire carries only relative nudges and the Pi never reports its pose. Pan
+self-corrects: each sweep drives estimate and servo into the same hard limit, re-zeroing drift
+every half sweep; tilt has no such re-zeroing point and its bounded drift is accepted (ADR-0014).
+_Avoid_: pose feedback (there is none), true pose, [Turret Pose] (that is the Pi-side actual)
 
 **Command Listener**:
 The Pi-side unit that receives [Aim Command]s off the network and hands each to the [Servo

@@ -70,3 +70,5 @@ tracker's lost-track buffer (ADR-0012).
   command must never drive a servo into a stall. First thing built (roadmap Phase 1).
 - **Honest failure mode: lost target.** When the locked [Track] disappears and none re-latches, the
   turret holds position (v1); an active search sweep is deferred (roadmap Phase 5).
+  *Superseded by ADR-0014:* past a short grace period the turret now runs [Sentry Mode] — a
+  continuous pan sweep with tilt parked at a patrol default — instead of holding forever.
