@@ -7,6 +7,8 @@ from turret_pi.servo import (
     SERVO_MIN_US,
     ServoAngles,
     ServoDriver,
+    TILT_MAX_DEG,
+    TILT_MIN_DEG,
     clamp_angles,
 )
 
@@ -24,11 +26,11 @@ def test_clamp_pan_below_min():
 
 
 def test_clamp_tilt_above_max():
-    assert clamp_angles(ServoAngles(90.0, 250.0)) == ServoAngles(90.0, 180.0)
+    assert clamp_angles(ServoAngles(90.0, 250.0)) == ServoAngles(90.0, TILT_MAX_DEG)
 
 
 def test_clamp_tilt_below_min():
-    assert clamp_angles(ServoAngles(90.0, -50.0)) == ServoAngles(90.0, 0.0)
+    assert clamp_angles(ServoAngles(90.0, -50.0)) == ServoAngles(90.0, TILT_MIN_DEG)
 
 
 class _FakeChannel:
@@ -53,8 +55,8 @@ class FakeKit:
 def test_startup_centers_both_channels():
     kit = FakeKit()
     driver = ServoDriver(kit=kit)
-    assert kit.servo[0].angle == 90.0
-    assert kit.servo[1].angle == 90.0
+    assert kit.servo[0].angle == CENTER.pan_deg
+    assert kit.servo[1].angle == CENTER.tilt_deg
     assert driver.current == CENTER
 
 
@@ -70,23 +72,24 @@ def test_apply_delta_accumulates_onto_pose_and_writes_both_channels():
     kit = FakeKit()
     driver = ServoDriver(kit=kit)
     driver.apply_delta(5.0, -5.0)
-    assert driver.current == ServoAngles(95.0, 85.0)
-    assert kit.servo[0].angle == 95.0
-    assert kit.servo[1].angle == 85.0
+    expected = ServoAngles(CENTER.pan_deg + 5.0, CENTER.tilt_deg - 5.0)
+    assert driver.current == expected
+    assert kit.servo[0].angle == expected.pan_deg
+    assert kit.servo[1].angle == expected.tilt_deg
 
 
 def test_successive_deltas_accumulate_relative_not_absolute():
     driver = ServoDriver(kit=FakeKit())
     driver.apply_delta(5.0, 0.0)
     driver.apply_delta(5.0, 0.0)
-    assert driver.current == ServoAngles(100.0, 90.0)
+    assert driver.current == ServoAngles(100.0, CENTER.tilt_deg)
 
 
 def test_delta_past_a_limit_is_clamped_and_never_writes_out_of_range():
     kit = FakeKit()
     driver = ServoDriver(kit=kit)
     driver.apply_delta(200.0, 0.0)  # 90 + 200 = 290 -> clamped to 180
-    assert driver.current == ServoAngles(180.0, 90.0)
+    assert driver.current == ServoAngles(180.0, CENTER.tilt_deg)
     assert kit.servo[0].angle == 180.0  # the raw 290 is never written
 
 
@@ -103,5 +106,5 @@ def test_recenter_returns_to_center_after_a_move():
     driver.apply_delta(5.0, -5.0)
     driver.recenter()
     assert driver.current == CENTER
-    assert kit.servo[0].angle == 90.0
-    assert kit.servo[1].angle == 90.0
+    assert kit.servo[0].angle == CENTER.pan_deg
+    assert kit.servo[1].angle == CENTER.tilt_deg

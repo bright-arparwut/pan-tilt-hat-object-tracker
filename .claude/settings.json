@@ -1,0 +1,93 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "ecc": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/affaan-m/ECC.git"
+      }
+    },
+    "mattpocock": {
+      "source": {
+        "source": "github",
+        "repo": "mattpocock/skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "ecc@ecc": true,
+    "feature-dev@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "mattpocock-skills@mattpocock": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "env": {
+    "ECC_HOOK_PROFILE": "standard"
+  },
+  "model": "opus[1m]",
+  "effortLevel": "high",
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(pnpm *)",
+      "Bash(yarn *)",
+      "Bash(tsc *)",
+      "Bash(eslint *)",
+      "Bash(prettier *)",
+      "Bash(vitest *)",
+      "Bash(jest *)",
+      "Read(*)",
+      "Edit(src/*)",
+      "Edit(tests/*)",
+      "Write(src/*)",
+      "Write(tests/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | bash)",
+      "Bash(ssh *)",
+      "Bash(> /dev/*)",
+      "Bash(dd *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Warn on destructive commands\nif echo \"$TOOL_INPUT\" | grep -qE '(rm -rf|sudo|chmod 777|mkfs|dd if=)'; then\n  echo 'WARN: Potentially destructive command detected'\nfi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Check for accidentally written secrets\nif echo \"$TOOL_INPUT\" | grep -qE '(sk-ant-|sk-proj-|ghp_|AKIA)'; then\n  echo 'BLOCK: Possible secret detected in written file'\n  exit 1\nfi"
+          }
+        ]
+      }
+    ]
+  }
+}

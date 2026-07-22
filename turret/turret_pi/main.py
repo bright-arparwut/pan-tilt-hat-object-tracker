@@ -34,6 +34,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
                         help="HTTP MJPEG port")
     parser.add_argument("--camera-index", type=int, default=DEFAULT_CAMERA_INDEX,
                         help="OpenCV camera index")
+    parser.add_argument("--no-stream", action="store_true",
+                        help="skip the MJPEG streamer (no Pi camera; e.g. Mac supplies frames)")
     parser.add_argument("--host", default=DEFAULT_HOST,
                         help="listener bind host")
     parser.add_argument("--allowed-source", default=None,
@@ -71,7 +73,8 @@ def run_turret(
     def should_continue() -> bool:
         return not stop.is_set()
 
-    start_streamer(args, should_continue)  # driver already built -> a servo fault failed fast
+    if not args.no_stream:
+        start_streamer(args, should_continue)  # driver already built -> a servo fault failed fast
     try:
         listener(
             driver,

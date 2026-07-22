@@ -223,8 +223,9 @@ _Avoid_: servo controller (conflates it with the [Aim Controller]), motor driver
 **Turret Pose**:
 Where the [Turret] is pointing now — an absolute pan/tilt aim the [Servo Driver] holds and
 updates. Distinct from an [Aim Command], which is a *relative* nudge: the Driver accumulates each
-nudge onto the Pose and clamps, so the Pose is the running absolute state whose mechanical centre
-is the known safe value.
+nudge onto the Pose and clamps, so the Pose is the running absolute state whose mechanical centre —
+the mid-range of each axis's calibrated limits, so pan and tilt need not share a value — is the
+known safe value it recentres to on shutdown.
 _Avoid_: angles (bare), position, aim (bare), servo state
 
 **Frame Streamer**:

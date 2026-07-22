@@ -62,3 +62,29 @@ def test_run_turret_starts_streamer_before_listener_then_recenters_on_exit():
     assert calls[1][3] == "127.0.0.1"                   # host forwarded
     assert driver.recentered == 1                       # recentered on the way out
     assert stop.is_set()                                # streamer told to wind down
+
+
+def test_run_turret_skips_streamer_when_no_stream():
+    driver = _FakeDriver()
+    calls: list = []
+
+    def fake_start_streamer(args, should_continue):
+        calls.append("streamer")
+        return threading.Thread(target=lambda: None)
+
+    def fake_listener(servo, port, *, host, allowed_source, should_continue):
+        calls.append("listener")
+
+    args = _parse_args(["--no-stream"])
+    assert args.no_stream is True
+    stop = threading.Event()
+
+    rc = run_turret(
+        driver, args, stop,
+        start_streamer=fake_start_streamer,
+        listener=fake_listener,
+    )
+
+    assert rc == 0
+    assert calls == ["listener"]                        # streamer never started
+    assert driver.recentered == 1                       # still recenters on exit
