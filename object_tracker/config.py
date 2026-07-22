@@ -71,6 +71,15 @@ DEFAULT_TURRET_DEADZONE_PX = 6.0  # |error| below this is treated as zero (kills
 DEFAULT_TURRET_MAX_DELTA_DEG = 5.0  # per-step slew clamp on a single Aim Command
 DEFAULT_TURRET_PORT = 9000
 
+# --- sentry mode (2026-07-22 design) — no-target pan sweep for the Actuator Sink -----
+SENTRY_GRACE_S = 2.0  # unlocked time before the sweep starts
+SENTRY_SPEED_DEG_S = 15.0  # continuous sweep speed (pan sweep AND tilt relocation)
+SENTRY_PAN_MIN_DEG = 0.0  # mirrors turret/turret_pi/servo.py PAN_MIN_DEG (no shared module)
+SENTRY_PAN_MAX_DEG = 180.0  # mirrors turret/turret_pi/servo.py PAN_MAX_DEG
+SENTRY_TILT_MIN_DEG = 20.0  # mirrors turret/turret_pi/servo.py TILT_MIN_DEG
+SENTRY_TILT_MAX_DEG = 115.0  # mirrors turret/turret_pi/servo.py TILT_MAX_DEG
+SENTRY_TILT_DEFAULT_DEG = 90.0  # patrol tilt the no-target sweep relocates to and holds
+
 # --- appearance (non-CLI styling; defaults reproduce prior output — ADR-0011) -------
 # The look of the Annotated Video, edited here rather than via --flags. Two colour
 # conventions coexist: supervision annotators take sv.Color / sv.ColorPalette; the cv2
@@ -149,6 +158,22 @@ class AimGains:
     ki: float = DEFAULT_TURRET_KI
     kd: float = DEFAULT_TURRET_KD
     deadzone_px: float = DEFAULT_TURRET_DEADZONE_PX
+    max_delta_deg: float = DEFAULT_TURRET_MAX_DELTA_DEG
+
+
+@dataclass(frozen=True)
+class SentryConfig:
+    """Sentry-mode tuning (2026-07-22 design): grace, sweep speed, and the host-side
+    mirrors of the Pi's servo clamps. ``max_delta_deg`` reuses the turret's per-step
+    slew clamp so a pipeline stall can't produce a violent sweep jump."""
+
+    grace_s: float = SENTRY_GRACE_S
+    speed_deg_s: float = SENTRY_SPEED_DEG_S
+    pan_min_deg: float = SENTRY_PAN_MIN_DEG
+    pan_max_deg: float = SENTRY_PAN_MAX_DEG
+    tilt_min_deg: float = SENTRY_TILT_MIN_DEG
+    tilt_max_deg: float = SENTRY_TILT_MAX_DEG
+    tilt_default_deg: float = SENTRY_TILT_DEFAULT_DEG
     max_delta_deg: float = DEFAULT_TURRET_MAX_DELTA_DEG
 
 

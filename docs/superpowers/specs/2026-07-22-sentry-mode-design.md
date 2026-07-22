@@ -3,7 +3,8 @@
 **Date:** 2026-07-22
 **Status:** Approved (brainstorming session 2026-07-22)
 **Amended:** 2026-07-22 — tilt now relocates to a default patrol angle during the sweep
-(was: held at its last angle); the default lives in `sentry.py`.
+(was: held at its last angle); the default lives in `config.py` alongside the other
+sentry constants (revised from an earlier draft that placed it in `sentry.py`).
 **Extends:** ADR-0013 (pan-tilt turret as Actuator Sink)
 
 ## Problem
@@ -23,7 +24,7 @@ appears, then snaps back to normal tracking.
 | Sweep pattern | **Continuous triangle wave** at constant speed: sweep to one limit, reverse, repeat. Chosen over step-and-stare because the moment a detection appears, the sink must hand over to the tracking loop on the very next frame — a slow continuous sweep guarantees the new target is still in frame at handover. |
 | Sweep speed | `SENTRY_SPEED_DEG_S = 15.0` °/s (full 180° pass in 12 s). Slowest option considered — minimises motion blur (small/distant objects are the primary use case) and keeps the find-to-track overshoot at ~0.8–3° given the 50–200 ms loop latency. |
 | First direction | **Left** (decreasing pan), starting from the current pan position, per the original request. |
-| Tilt during sweep | **Relocated to a default patrol angle.** Once the grace period elapses, tilt is driven (rate-limited, via the same relative-delta wire) to `SENTRY_TILT_DEFAULT_DEG` — declared in `sentry.py` next to the state machine — and held there for the rest of the sweep. Supersedes the original "hold last tilt" decision: a fixed patrol tilt gives a predictable guard posture regardless of where the last target vanished. |
+| Tilt during sweep | **Relocated to a default patrol angle.** Once the grace period elapses, tilt is driven (rate-limited, via the same relative-delta wire) to `SENTRY_TILT_DEFAULT_DEG` — declared in `config.py` with the other sentry constants — and held there for the rest of the sweep. Supersedes the original "hold last tilt" decision: a fixed patrol tilt gives a predictable guard posture regardless of where the last target vanished. |
 | How is it enabled? | Automatically with `--turret`. No new flag: a turret that guards on its own is the point of the feature. |
 | Where does the sweep logic live? | **Host-side** (Approach A below). |
 
@@ -46,7 +47,8 @@ appears, then snaps back to normal tracking.
 The wire carries only relative nudges (`{"pan_delta", "tilt_delta", "seq"}`); the Pi
 never reports its pose. The host therefore keeps a **pan estimate and a tilt estimate**:
 
-- Both start at **90.0°** — the Pi's `ServoDriver` recenters to `CENTER` (90/90) on startup.
+- Estimates start at the Pi's startup recenter pose — `ServoDriver` recenters to
+  `CENTER` (pan 90.0°, tilt 67.5°, the midpoint of the 20–115° tilt clamps) on startup.
 - Every delta the sink ships (tracking **and** sentry alike) is accumulated
   into its estimate, then clamped to 0–180 with the same limits the Pi applies
   (`turret_pi/servo.py`: `PAN_MIN_DEG = 0.0`, `PAN_MAX_DEG = 180.0`, and the tilt
@@ -73,10 +75,10 @@ at the other.
 Mirrors `aim_controller.py`'s shape: a frozen-dataclass state threaded through a pure
 `step` function.
 
-```python
-SENTRY_TILT_DEFAULT_DEG = 90.0       # patrol tilt the sweep relocates to
-                                     # (deliberately configured HERE, not config.py)
+`SENTRY_TILT_DEFAULT_DEG` (the patrol tilt the sweep relocates to) lives in `config.py`
+with the other sentry constants; `sentry.py` imports it.
 
+```python
 @dataclass(frozen=True)
 class SentryState:
     pan_estimate_deg: float = 90.0   # dead-reckoned absolute pan
@@ -130,16 +132,17 @@ SENTRY_GRACE_S = 2.0          # unlocked time before the sweep starts
 SENTRY_SPEED_DEG_S = 15.0     # continuous sweep speed (pan sweep AND tilt relocation)
 SENTRY_PAN_MIN_DEG = 0.0      # mirrors turret_pi/servo.py PAN_MIN_DEG (no shared module)
 SENTRY_PAN_MAX_DEG = 180.0    # mirrors turret_pi/servo.py PAN_MAX_DEG
+SENTRY_TILT_DEFAULT_DEG = 90.0  # patrol tilt the no-target sweep relocates to and holds
 ```
 
 Plus a small frozen `SentryConfig` dataclass if it keeps `step`'s signature clean.
 Constants, not CLI flags (same reasoning as ADR-0011's Appearance: tuning values,
 not run-shape choices).
 
-Exception: `SENTRY_TILT_DEFAULT_DEG` lives in `sentry.py`, not here (amendment
-decision) — it is the state machine's own target pose, and keeping it beside the
-relocation logic that consumes it makes `sentry.py` the single file to edit when
-retuning the patrol posture.
+`SENTRY_TILT_DEFAULT_DEG` lives here with the rest of the sentry constants, so the
+whole patrol posture is retuned in one file; `sentry.py` imports it. (An earlier
+amendment draft placed it in `sentry.py` beside the relocation logic; that was
+reversed to keep all sentry tuning values in `config.py`.)
 
 ### Unchanged
 
