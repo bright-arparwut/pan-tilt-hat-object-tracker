@@ -9,7 +9,9 @@ from __future__ import annotations
 from object_tracker.config import SentryConfig
 from object_tracker.turret_sink.sentry import SentryState, observe_aim, step
 
-CFG = SentryConfig()  # grace 2.0 s, 15 deg/s, pan 0-180, tilt 20-115, default 90, max_delta 5
+CFG = (
+    SentryConfig()
+)  # grace 2.0 s, 15 deg/s, pan 0-180, tilt 20-115, default 90, max_delta 5
 
 
 def test_no_output_while_below_grace_period():
@@ -159,8 +161,12 @@ def test_relock_then_unlock_sweeps_left_again():
     from dataclasses import replace
 
     state = _past_grace(direction=1.0)  # was sweeping right
-    state = observe_aim(state, pan_delta=-2.0, tilt_delta=1.0, config=CFG)  # locked frame
-    state = replace(state, unlocked_for_s=CFG.grace_s + 1.0)  # unlocked again, past grace
+    state = observe_aim(
+        state, pan_delta=-2.0, tilt_delta=1.0, config=CFG
+    )  # locked frame
+    state = replace(
+        state, unlocked_for_s=CFG.grace_s + 1.0
+    )  # unlocked again, past grace
 
     pan, _, _ = step(state, dt=0.1, config=CFG)
 

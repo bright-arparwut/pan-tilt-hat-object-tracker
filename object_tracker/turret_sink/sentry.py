@@ -57,11 +57,15 @@ def step(
     tilt_delta = _clamp(remaining, -step_mag, step_mag)
     tilt_delta = round(tilt_delta, 10)  # avoid floating-point precision artifacts
 
-    return pan_delta, tilt_delta, SentryState(
-        pan_estimate_deg=new_pan,
-        tilt_estimate_deg=state.tilt_estimate_deg + tilt_delta,
-        direction=direction,
-        unlocked_for_s=unlocked_for_s,
+    return (
+        pan_delta,
+        tilt_delta,
+        SentryState(
+            pan_estimate_deg=new_pan,
+            tilt_estimate_deg=state.tilt_estimate_deg + tilt_delta,
+            direction=direction,
+            unlocked_for_s=unlocked_for_s,
+        ),
     )
 
 
@@ -76,7 +80,9 @@ def observe_aim(
             state.pan_estimate_deg + pan_delta, config.pan_min_deg, config.pan_max_deg
         ),
         tilt_estimate_deg=_clamp(
-            state.tilt_estimate_deg + tilt_delta, config.tilt_min_deg, config.tilt_max_deg
+            state.tilt_estimate_deg + tilt_delta,
+            config.tilt_min_deg,
+            config.tilt_max_deg,
         ),
         direction=-1.0,
         unlocked_for_s=0.0,

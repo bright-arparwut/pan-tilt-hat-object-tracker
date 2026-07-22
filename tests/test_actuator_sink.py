@@ -68,7 +68,9 @@ def test_show_keeps_the_lock_when_a_second_id_appears():
     transport = FakeTransport()
     sink = ActuatorSink(transport, _gains(), FRAME_WH)
 
-    sink.show(_blank_frame(), _tracked([5], [[60, 20, 80, 30]]))  # locks 5 (right of centre)
+    sink.show(
+        _blank_frame(), _tracked([5], [[60, 20, 80, 30]])
+    )  # locks 5 (right of centre)
     sink.show(
         _blank_frame(),
         _tracked([5, 9], [[60, 20, 80, 30], [0, 0, 10, 10]]),  # 9 is left of centre
@@ -82,7 +84,9 @@ def test_show_holds_position_and_relatches_after_losing_the_locked_id():
     transport = FakeTransport()
     sink = ActuatorSink(transport, _gains(), FRAME_WH)
 
-    sink.show(_blank_frame(), _tracked([5], [[60, 20, 80, 30]]))  # locks 5, sends a command
+    sink.show(
+        _blank_frame(), _tracked([5], [[60, 20, 80, 30]])
+    )  # locks 5, sends a command
     sent_after_first = len(transport.sent)
 
     sink.show(_blank_frame(), sv.Detections.empty())  # 5 is gone -> holds, no command
@@ -90,7 +94,9 @@ def test_show_holds_position_and_relatches_after_losing_the_locked_id():
 
     sink.show(_blank_frame(), _tracked([9], [[0, 0, 10, 10]]))  # re-latches onto 9
     assert len(transport.sent) == sent_after_first + 1
-    assert transport.sent[-1].pan_delta < 0.0  # 9's centre (5,5) is left of frame centre (50,25)
+    assert (
+        transport.sent[-1].pan_delta < 0.0
+    )  # 9's centre (5,5) is left of frame centre (50,25)
 
 
 def test_show_sends_a_command_carrying_plain_python_floats():

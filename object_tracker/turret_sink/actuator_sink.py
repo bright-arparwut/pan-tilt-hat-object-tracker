@@ -44,7 +44,9 @@ class ActuatorSink:
         self._locked_id: int | None = None
         self._state = AimControllerState()
         self._last_ts: float | None = None
-        self._sentry_config = sentry_config if sentry_config is not None else SentryConfig()
+        self._sentry_config = (
+            sentry_config if sentry_config is not None else SentryConfig()
+        )
         self._sentry = SentryState()
         self._clock = clock
 
@@ -67,7 +69,9 @@ class ActuatorSink:
                 self._sentry, dt, self._sentry_config
             )
             if pan_delta != 0.0 or tilt_delta != 0.0:
-                self._transport.send(AimCommand(pan_delta=pan_delta, tilt_delta=tilt_delta))
+                self._transport.send(
+                    AimCommand(pan_delta=pan_delta, tilt_delta=tilt_delta)
+                )
         return True
 
     def close(self) -> None:

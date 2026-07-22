@@ -13,7 +13,8 @@ class DetectionStyle(Enum):
     """The selectable per-Detection visual style (Appearance / ADR-0011), built into a
     supervision annotator by ``annotators.py``. ``BOX`` reproduces the prior output. The
     members span box outlines, fills, markers and pixel effects — they do *not* share a
-    constructor, so the factory builds each one its own way (see ``_DETECTION_STYLES``)."""
+    constructor, so the factory builds each one its own way (see ``_DETECTION_STYLES``).
+    """
 
     BOX = "box"  # sv.BoxAnnotator — the default rectangle outline
     ROUND = "round"  # sv.RoundBoxAnnotator — rounded rectangle
@@ -30,7 +31,8 @@ class DetectionStyle(Enum):
 class TrackerKind(Enum):
     """The selectable multi-object Tracker (ADR-0012), passed to Ultralytics
     ``model.track()`` as its ``tracker`` argument. Each value is the shipped tracker config
-    filename; ``BYTETRACK`` is the default and reproduces the prior in-loop ByteTrack."""
+    filename; ``BYTETRACK`` is the default and reproduces the prior in-loop ByteTrack.
+    """
 
     BYTETRACK = "bytetrack.yaml"
     BOTSORT = "botsort.yaml"
@@ -41,7 +43,9 @@ class TrackerKind(Enum):
 
 
 # --- defaults / constants (resolution-relative where it matters) -------------------
-COCO_BIRD_CLASS_ID = 14  # COCO id for "bird" — the canonical example class (--classes 14)
+COCO_BIRD_CLASS_ID = (
+    14  # COCO id for "bird" — the canonical example class (--classes 14)
+)
 DEFAULT_WEIGHTS = "yolo11x.pt"
 DEFAULT_CONF = 0.15  # recall-first; tracking is the false-positive filter (ADR-0004)
 DEFAULT_SLICE_WH = (640, 640)
@@ -60,21 +64,27 @@ DEFAULT_TRACK_BUFFER = 60
 # value because it feeds annotator scaling (frame-count based), so fall back to this when
 # the device doesn't report one (ADR-0010 §Consequences).
 DEFAULT_CAMERA_FPS = 30
-DEFAULT_TRACKER = TrackerKind.BYTETRACK  # default Tracker (ADR-0012); preserves ADR-0006
+DEFAULT_TRACKER = (
+    TrackerKind.BYTETRACK
+)  # default Tracker (ADR-0012); preserves ADR-0006
 DEFAULT_ZOOM_SIZE = 0.05  # crop side as a fraction of frame width
 
 # --- turret (ADR-0013) — Aim Controller defaults; deliberately gentle, tune on hardware ---
 DEFAULT_TURRET_KP = 0.05  # deg per px error
 DEFAULT_TURRET_KI = 0.0  # Phase 3 is P-only; Phase 4 turns this on
 DEFAULT_TURRET_KD = 0.0  # ditto
-DEFAULT_TURRET_DEADZONE_PX = 6.0  # |error| below this is treated as zero (kills at-rest jitter)
+DEFAULT_TURRET_DEADZONE_PX = (
+    6.0  # |error| below this is treated as zero (kills at-rest jitter)
+)
 DEFAULT_TURRET_MAX_DELTA_DEG = 5.0  # per-step slew clamp on a single Aim Command
 DEFAULT_TURRET_PORT = 9000
 
 # --- sentry mode (2026-07-22 design) — no-target pan sweep for the Actuator Sink -----
 SENTRY_GRACE_S = 2.0  # unlocked time before the sweep starts
 SENTRY_SPEED_DEG_S = 15.0  # continuous sweep speed (pan sweep AND tilt relocation)
-SENTRY_PAN_MIN_DEG = 0.0  # mirrors turret/turret_pi/servo.py PAN_MIN_DEG (no shared module)
+SENTRY_PAN_MIN_DEG = (
+    0.0  # mirrors turret/turret_pi/servo.py PAN_MIN_DEG (no shared module)
+)
 SENTRY_PAN_MAX_DEG = 180.0  # mirrors turret/turret_pi/servo.py PAN_MAX_DEG
 SENTRY_TILT_MIN_DEG = 20.0  # mirrors turret/turret_pi/servo.py TILT_MIN_DEG
 SENTRY_TILT_MAX_DEG = 115.0  # mirrors turret/turret_pi/servo.py TILT_MAX_DEG
@@ -86,14 +96,20 @@ SENTRY_TILT_DEFAULT_DEG = 90.0  # patrol tilt the no-target sweep relocates to a
 # zoom raster takes BGR tuples. They can't unify (different libraries), so they're grouped.
 #
 # supervision annotators (sv.* types) — fed to the annotators.py factory:
-DETECTION_STYLE = DetectionStyle.BOX  # per-Detection style; BOX = prior look (annotators._DETECTION_STYLES)
+DETECTION_STYLE = (
+    DetectionStyle.BOX
+)  # per-Detection style; BOX = prior look (annotators._DETECTION_STYLES)
 ANNOTATION_PALETTE = sv.ColorPalette.DEFAULT  # box/label/trace colours (both modes)
 TRACE_LENGTH = 30  # sv.TraceAnnotator trace_length: trail length in frames
-LABEL_TEXT_COLOR: sv.Color | None = None  # None -> keep sv default; an sv.Color forces it
+LABEL_TEXT_COLOR: sv.Color | None = (
+    None  # None -> keep sv default; an sv.Color forces it
+)
 LABEL_POSITION = sv.Position.TOP_CENTER  # sv.LabelAnnotator text_position
 TRACE_POSITION = sv.Position.CENTER  # sv.TraceAnnotator anchor
-THICKNESS_SCALE = .5  # multiplier on calculate_optimal_line_thickness (1.0 = unchanged)
-TEXT_SCALE_MULT = .5  # multiplier on calculate_optimal_text_scale (1.0 = unchanged)
+THICKNESS_SCALE = (
+    0.5  # multiplier on calculate_optimal_line_thickness (1.0 = unchanged)
+)
+TEXT_SCALE_MULT = 0.5  # multiplier on calculate_optimal_text_scale (1.0 = unchanged)
 # None -> mode-aware lookup (CLASS no-track / TRACK track); an sv.ColorLookup forces both.
 COLOR_LOOKUP_OVERRIDE: sv.ColorLookup | None = None
 #
@@ -104,7 +120,9 @@ ZOOM_EMA_ALPHA = 0.3  # smoothing on the inset centre (lower = smoother)
 ZOOM_BORDER_BGR = (0, 255, 0)
 ZOOM_BORDER_THICKNESS = 2  # cv2 border line width on each zoom panel
 ZOOM_MIN_CROP_PX = 8  # floor on the crop side so tiny --zoom-size stays sampleable
-ZOOM_LABEL_SCALE = 0.006  # identity-slot #id font scale per panel px (resolution-relative)
+ZOOM_LABEL_SCALE = (
+    0.006  # identity-slot #id font scale per panel px (resolution-relative)
+)
 ZOOM_LABEL_MIN_SCALE = 0.4
 
 
@@ -145,7 +163,9 @@ class ZoomConfig:
 
     enabled: bool
     size: float  # crop side as a fraction of frame width
-    max_panels: int  # confidence-mode: follow top-N; identity-mode: id-pinned slot count
+    max_panels: (
+        int  # confidence-mode: follow top-N; identity-mode: id-pinned slot count
+    )
     track_id: int | None = None  # identity-mode: lock the inset to one tracker_id
 
 
