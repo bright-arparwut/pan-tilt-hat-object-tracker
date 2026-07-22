@@ -91,3 +91,47 @@ def test_large_dt_output_is_clamped_to_max_delta_on_both_axes():
 
     assert abs(pan) == CFG.max_delta_deg
     assert abs(tilt) <= CFG.max_delta_deg
+
+
+def test_tilt_walks_to_default_without_overshoot_final_step_is_exact_remainder():
+    state = SentryState(  # 2.5 deg below default; per-step at dt=0.1 is 1.5 deg
+        pan_estimate_deg=90.0,
+        tilt_estimate_deg=CFG.tilt_default_deg - 2.5,
+        direction=-1.0,
+        unlocked_for_s=CFG.grace_s + 1.0,
+    )
+
+    _, tilt1, state = step(state, dt=0.1, config=CFG)
+    _, tilt2, state = step(state, dt=0.1, config=CFG)
+
+    assert tilt1 == 1.5  # full-speed step toward the default
+    assert tilt2 == 1.0  # exact remainder, no overshoot
+    assert state.tilt_estimate_deg == CFG.tilt_default_deg
+
+
+def test_tilt_already_at_default_emits_zero_every_frame():
+    state = SentryState(
+        pan_estimate_deg=90.0,
+        tilt_estimate_deg=CFG.tilt_default_deg,
+        direction=-1.0,
+        unlocked_for_s=CFG.grace_s + 1.0,
+    )
+
+    for _ in range(5):
+        _, tilt, state = step(state, dt=0.1, config=CFG)
+        assert tilt == 0.0
+    assert state.tilt_estimate_deg == CFG.tilt_default_deg
+
+
+def test_tilt_approaches_from_above_the_default_too():
+    state = SentryState(
+        pan_estimate_deg=90.0,
+        tilt_estimate_deg=CFG.tilt_default_deg + 0.7,
+        direction=-1.0,
+        unlocked_for_s=CFG.grace_s + 1.0,
+    )
+
+    _, tilt, state = step(state, dt=0.1, config=CFG)
+
+    assert tilt == -0.7  # exact remainder downward
+    assert state.tilt_estimate_deg == CFG.tilt_default_deg

@@ -55,6 +55,7 @@ def step(
 
     remaining = config.tilt_default_deg - state.tilt_estimate_deg
     tilt_delta = _clamp(remaining, -step_mag, step_mag)
+    tilt_delta = round(tilt_delta, 10)  # avoid floating-point precision artifacts
 
     return pan_delta, tilt_delta, SentryState(
         pan_estimate_deg=new_pan,
