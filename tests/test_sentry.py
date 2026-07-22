@@ -7,7 +7,7 @@ One test per spec invariant, AAA style.
 from __future__ import annotations
 
 from object_tracker.config import SentryConfig
-from object_tracker.turret_sink.sentry import SentryState, step
+from object_tracker.turret_sink.sentry import SentryState, observe_aim, step
 
 CFG = SentryConfig()  # grace 2.0 s, 15 deg/s, pan 0-180, tilt 20-115, default 90, max_delta 5
 
@@ -135,3 +135,33 @@ def test_tilt_approaches_from_above_the_default_too():
 
     assert tilt == -0.7  # exact remainder downward
     assert state.tilt_estimate_deg == CFG.tilt_default_deg
+
+
+def test_observe_aim_accumulates_both_axes_and_clamps():
+    state = SentryState(pan_estimate_deg=179.0, tilt_estimate_deg=114.0)
+
+    state = observe_aim(state, pan_delta=5.0, tilt_delta=5.0, config=CFG)
+
+    assert state.pan_estimate_deg == CFG.pan_max_deg  # 184 clamped to 180
+    assert state.tilt_estimate_deg == CFG.tilt_max_deg  # 119 clamped to 115
+
+
+def test_observe_aim_resets_grace_timer_and_sweep_direction():
+    state = SentryState(direction=1.0, unlocked_for_s=99.0)
+
+    state = observe_aim(state, pan_delta=0.0, tilt_delta=0.0, config=CFG)
+
+    assert state.unlocked_for_s == 0.0
+    assert state.direction == -1.0  # next sweep starts left again
+
+
+def test_relock_then_unlock_sweeps_left_again():
+    from dataclasses import replace
+
+    state = _past_grace(direction=1.0)  # was sweeping right
+    state = observe_aim(state, pan_delta=-2.0, tilt_delta=1.0, config=CFG)  # locked frame
+    state = replace(state, unlocked_for_s=CFG.grace_s + 1.0)  # unlocked again, past grace
+
+    pan, _, _ = step(state, dt=0.1, config=CFG)
+
+    assert pan < 0.0  # left again

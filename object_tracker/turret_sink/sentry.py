@@ -63,3 +63,21 @@ def step(
         direction=direction,
         unlocked_for_s=unlocked_for_s,
     )
+
+
+def observe_aim(
+    state: SentryState, pan_delta: float, tilt_delta: float, config: SentryConfig
+) -> SentryState:
+    """A locked frame shipped an Aim Command: fold its deltas into the estimates
+    (clamped like the Pi clamps), reset the grace timer, and re-arm the first
+    sweep direction (left)."""
+    return SentryState(
+        pan_estimate_deg=_clamp(
+            state.pan_estimate_deg + pan_delta, config.pan_min_deg, config.pan_max_deg
+        ),
+        tilt_estimate_deg=_clamp(
+            state.tilt_estimate_deg + tilt_delta, config.tilt_min_deg, config.tilt_max_deg
+        ),
+        direction=-1.0,
+        unlocked_for_s=0.0,
+    )
