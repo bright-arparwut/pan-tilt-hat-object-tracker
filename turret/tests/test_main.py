@@ -10,16 +10,18 @@ def test_parse_args_defaults():
     assert args.port == 9000
     assert args.stream_port == 8000
     assert args.camera_index == 0
+    assert args.csi is False
     assert args.host == "0.0.0.0"
     assert args.allowed_source is None
 
 
 def test_parse_args_overrides():
     args = _parse_args(
-        ["--port", "9100", "--stream-port", "8100", "--camera-index", "2",
+        ["--port", "9100", "--stream-port", "8100", "--camera-index", "2", "--csi",
          "--host", "127.0.0.1", "--allowed-source", "10.0.0.5"]
     )
     assert (args.port, args.stream_port, args.camera_index) == (9100, 8100, 2)
+    assert args.csi is True
     assert args.host == "127.0.0.1"
     assert args.allowed_source == "10.0.0.5"
 
