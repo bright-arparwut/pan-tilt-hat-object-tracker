@@ -33,7 +33,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--stream-port", type=int, default=DEFAULT_STREAM_PORT,
                         help="HTTP MJPEG port")
     parser.add_argument("--camera-index", type=int, default=DEFAULT_CAMERA_INDEX,
-                        help="OpenCV camera index")
+                        help="camera index (OpenCV device or Picamera2 camera number)")
+    parser.add_argument("--csi", action="store_true",
+                        help="capture via Picamera2 (CSI camera module) instead of USB/OpenCV")
     parser.add_argument("--no-stream", action="store_true",
                         help="skip the MJPEG streamer (no Pi camera; e.g. Mac supplies frames)")
     parser.add_argument("--host", default=DEFAULT_HOST,
@@ -51,6 +53,7 @@ def _start_streamer_thread(
         kwargs={
             "camera_index": args.camera_index,
             "port": args.stream_port,
+            "csi": args.csi,
             "should_continue": should_continue,
         },
         daemon=True,

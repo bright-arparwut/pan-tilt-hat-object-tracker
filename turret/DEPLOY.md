@@ -24,7 +24,8 @@ the Pi pulls only the small Pi-side dependencies.
 - Raspberry Pi 5
 - Waveshare Pan-Tilt HAT (PCA9685 over I²C, at address `0x40`) — drives 2 servos
 - 2× servo: **pan = channel 0, tilt = channel 1**
-- USB camera, mounted **on the moving platform**
+- Camera, mounted **on the moving platform** — either a **USB webcam** (the default path) or a
+  **CSI camera module** (ribbon cable; run with `--csi`, see *CSI camera module* below)
 - A proper **5V / 5A** Pi 5 supply (see the brownout note under Troubleshooting)
 
 ## Phase 0 — Pi setup (once, headless from the Mac)
@@ -53,8 +54,9 @@ the Pi pulls only the small Pi-side dependencies.
 
 - Seat the Pan-Tilt HAT on the Pi's 40-pin GPIO header.
 - Plug the servos into the HAT's **pan (ch 0)** and **tilt (ch 1)** outputs.
-- Plug the USB camera into a Pi USB port; route its cable with slack so the platform doesn't fight
-  its own wire.
+- Plug the USB camera into a Pi USB port — or seat the CSI camera's ribbon cable in a camera
+  connector (contacts facing the right way; the connector's latch holds it). Either way, route the
+  cable with slack so the platform doesn't fight its own wire.
 - Power the Pi from a proper **5V/5A** supply, and feed servo power as the HAT specifies.
 
 ## Servo calibration (mechanical limits)
@@ -86,11 +88,31 @@ tilt 67.5°** — so a fresh or recentred turret sits in the middle of its *real
 90° that would tilt it hard toward one stop. Re-measure and update these four constants if you
 re-bracket or swap servos.
 
+## CSI camera module (instead of a USB webcam)
+
+The streamer captures via OpenCV/V4L2 by default, which a CSI camera module on the modern
+libcamera stack does **not** satisfy — pass `--csi` to capture through **Picamera2** instead.
+Picamera2 rides on the OS libcamera stack, so it comes from **apt, not pip**, and the venv must
+be able to see the system packages:
+
+```bash
+sudo apt install python3-picamera2 --no-install-recommends   # OS camera stack + bindings
+cd <repo>/turret
+uv venv --system-site-packages       # (re)create the venv so it can import picamera2
+uv sync
+libcamera-hello --list-cameras       # sanity check: the module is detected  (or rpicam-hello)
+```
+
+Everything downstream is unchanged: the same MJPEG endpoint, the same Mac command line. If
+`turret --csi` fails with "Picamera2 is not available", the venv was created without
+`--system-site-packages` — recreate it as above.
+
 ## Running
 
 **On the Pi** — start the actuator (streamer + command listener):
 ```bash
-uv run turret --port 9000 --stream-port 8000
+uv run turret --port 9000 --stream-port 8000          # USB webcam
+uv run turret --port 9000 --stream-port 8000 --csi    # CSI camera module (Picamera2)
 ```
 
 **On the Mac** — run the tracker against the Pi's stream and aim the turret:
@@ -108,8 +130,8 @@ All Pi-side units are built and unit-tested Mac-side (no hardware): `wire.decode
 (PCA9685), the MJPEG Frame **Streamer**, the `teleop` calibration harness, and `main.py` — so the
 `turret = "turret_pi.main:main"` entrypoint in `pyproject.toml` runs.
 
-What only the Pi can confirm is the live hardware behaviour: I²C servo motion and USB-camera MJPEG
-capture. During bring-up, verify in this order:
+What only the Pi can confirm is the live hardware behaviour: I²C servo motion and camera MJPEG
+capture (USB/V4L2 or CSI/Picamera2). During bring-up, verify in this order:
 
 1. **Servo axis signs + mechanical limits** — run the teleop harness and calibrate (see *Servo
    calibration*). The sign flip is the classic first bug (ADR-0013): if an axis moves the wrong way,
