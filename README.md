@@ -69,6 +69,18 @@ Live defaults are the leanest config — slicing, tracking, and the zoom inset a
 nothing is written unless you pass `--sidecar` / `--record`. Each can be re-enabled explicitly
 (`--track`, `--zoom`, `--slice`). Offline defaults are unchanged. See ADR-0010 for the design.
 
+## Learning sandbox
+
+`learn/` is a skeleton of this project — same architecture, empty bodies — with a 12-week
+curriculum for re-implementing it from scratch. Every module keeps its docstrings, type
+signatures and 2–4 acceptance tests as the contract; the implementations are yours to write.
+
+```bash
+cd learn && uv sync && uv run pytest     # week 0: a wall of NotImplementedError
+```
+
+Start at [`learn/CURRICULUM.md`](learn/CURRICULUM.md).
+
 ## Notes
 
 - **General by default.** With no `--classes`, all of the weights' classes are kept,
